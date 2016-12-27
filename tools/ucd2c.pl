@@ -230,7 +230,7 @@ sub binary_props {
     my $fname = shift; # filename
     each_line($fname, sub { $_ = shift;
         my ($range, $pname) = split /\s*[;#]\s*/; # range, property name
-        $pname = 'space' if $pname eq 'White_Space';
+        #$pname = 'space' if $pname eq 'White_Space';
         register_binary_property($pname); # define the property
         apply_to_range($range, sub {
             my $point = shift;
@@ -1002,7 +1002,6 @@ struct MVMUnicodeNamedValue {
                         unless $_ eq $name;
                     $prop_codes->{$_} = $name;
                 }
-                last;
             }
         }
     });
@@ -1051,6 +1050,7 @@ struct MVMUnicodeNamedValue {
             $done{"$propname$_"} ||= push @lines, $lines{$propname}->{$_};
         }
     }
+    # Seems ok here @lines ok here
     for my $key (qw(gc sc), keys %$prop_names) {
         $_ = $key;
         $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
@@ -1062,6 +1062,9 @@ struct MVMUnicodeNamedValue {
             $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         }
     }
+  #  say Dumper(%$prop_names);
+    #%$prop_names seems fine here
+    #BAD HERE
     $hout .= "
 #define num_unicode_property_keypairs ".scalar(@lines)."\n";
     my $out = "
@@ -1097,6 +1100,9 @@ sub emit_unicode_property_value_keypairs {
         $lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
         $lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
     }
+    #say Dumper(%lines);
+    # NOT IN %lines here
+    # Now we add the aliases too
     each_line('PropertyValueAliases', sub { $_ = shift;
         if (/^# (\w+) \((\w+)\)/) {
             $aliases{$2} = $1;
@@ -1105,6 +1111,7 @@ sub emit_unicode_property_value_keypairs {
         return if /^(?:#|\s*$)/;
         my @parts = split /\s*[#;]\s*/;
         my $propname = shift @parts;
+        say "Propname: [$propname]";
         if (exists $prop_names->{$propname}) {
             my $prop_val = $prop_names->{$propname} << 24;
             # emit binary properties
@@ -1135,28 +1142,32 @@ sub emit_unicode_property_value_keypairs {
             my $key = $prop_codes->{$propname};
             my $found = 0;
             my $enum = $all_properties->{$key}->{'enum'};
-            die $propname unless $enum;
-            my $value;
-            for (@parts) {
-                my $alias = $_;
-                $alias    =~ s/[_\-\s]/./g;
-                $alias    = lc($alias);
-                if (exists $enum->{$alias}) {
-                    $value = $enum->{$alias};
-                    last;
+            if ($enum) {
+                my $value;
+                for (@parts) {
+                    my $alias = $_;
+                    $alias    =~ s/[_\-\s]/./g;
+                    $alias    = lc($alias);
+                    if (exists $enum->{$alias}) {
+                        $value = $enum->{$alias};
+                        last;
+                    }
+                }
+                #die Dumper($enum) unless defined $value;
+                unless (defined $value) {
+                    print "warning: couldn't resolve property $propname property value alias\n";
+                    return;
+                }
+                for (@parts) {
+                    s/[\-\s]/./g;
+                    next if /[\.\|]/;
+                    $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}";
+                    $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
+                    $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
                 }
             }
-            #die Dumper($enum) unless defined $value;
-            unless (defined $value) {
-                #print "warning: couldn't resolve property $propname property value alias $first\n";
-                return;
-            }
-            for (@parts) {
-                s/[\-\s]/./g;
-                next if /[\.\|]/;
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}";
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
+            else {
+                say "$propname going next at line 1170";
             }
         }
     }, 1);
