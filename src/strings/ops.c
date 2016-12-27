@@ -1657,7 +1657,7 @@ static MVMint64 grapheme_is_cclass(MVMThreadContext *tc, MVMint64 cclass, MVMGra
                     return 0;
             }
             return MVM_unicode_codepoint_has_property_value(tc, cp,
-                MVM_UNICODE_PROPERTY_WHITE_SPACE, 1);
+                MVM_UNICODE_PROPERTY_SPACE, 1);
 
         case MVM_CCLASS_BLANK:
             if (cp == '\t')

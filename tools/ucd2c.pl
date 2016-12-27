@@ -230,6 +230,7 @@ sub binary_props {
     my $fname = shift; # filename
     each_line($fname, sub { $_ = shift;
         my ($range, $pname) = split /\s*[;#]\s*/; # range, property name
+        $pname = 'space' if $pname eq 'White_Space';
         register_binary_property($pname); # define the property
         apply_to_range($range, sub {
             my $point = shift;
@@ -845,11 +846,11 @@ static struct UnicodeBlock unicode_blocks[] = {
             my $alias_name = lc($block_name);
             my $block_len  = length $block_name;
             my $alias_len  = length $alias_name;
-            if ($block_len && $alias_len > 3) {
+            if ($block_len && $alias_len) {
                 push @blocks, "    { 0x$from, 0x$to, \"$block_name\", $block_len, \"$alias_name\", $alias_len }";
             }
             else {
-                print "WHATHTAHTAHAT";
+                print "Alias name $alias_name length or block doesn't exist";
             }
         }
     });
@@ -1070,7 +1071,7 @@ static const MVMUnicodeNamedValue unicode_property_keypairs[".scalar(@lines)."] 
     $db_sections->{BBB_unicode_property_keypairs} = $out;
     $h_sections->{MVMUnicodeNamedValue} = $hout;
 }
-
+# Problems here!!!
 sub emit_unicode_property_value_keypairs {
     my $hout = "";
     my @lines = ();
@@ -1089,6 +1090,7 @@ sub emit_unicode_property_value_keypairs {
     }
     my %lines;
     my %aliases;
+    # %$binary_properties (no aliases)
     for (keys %$binary_properties) {
         my $prop_val = ($prop_names->{$_} << 24) + 1;
         $lines{_custom_}->{$_} = "{\"$_\",$prop_val}";
@@ -1409,6 +1411,8 @@ sub UnicodeData {
             Any => 1
         };
         $point->{Bidi_Mirrored} = 1 if $bidimirrored eq 'Y';
+        $point->{space} = 1 if $bidiclass eq 'WS';
+        print '.' if $bidiclass eq 'WS';
         if ($decmpspec) {
             $decmpspec =~ s/<\w+>\s+//;
             $point->{Decomp_Spec} = $decomp_index;
