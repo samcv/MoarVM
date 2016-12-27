@@ -1400,10 +1400,13 @@ sub UnicodeData {
 
         my $code = hex $code_str;
         my $plane_num = $code >> 16;
-        if ($name eq '<control>' || $name eq '') {
-            $name = $u1name;
+        if ($name eq '<control>' ) {
+            $name = sprintf '<control-%.4x>', $code;
         }
         my $point = {
+            # Unicode_1_Name is not used yet. We should make sure it ends up
+            # in some data structure
+            Unicode_1_Name => $u1name,
             code_str => $code_str,
             name => $name,
             gencat_name => $gencat,
