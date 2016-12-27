@@ -2,7 +2,7 @@ use v5.14;
 use warnings; use strict;
 use Data::Dumper;
 use Carp qw(cluck);
-$Data::Dumper::Maxdepth = 1;
+$Data::Dumper::Maxdepth = 2;
 # Make C versions of the Unicode tables.
 
 # Before running, download zip files from http://www.unicode.org/Public/zipped/
@@ -24,6 +24,7 @@ my $binary_properties = {};
 my $first_point = undef;
 my $last_point = undef;
 my $aliases = {};
+my $uniname_aliases = {};
 my $prop_names = {};
 my $named_sequences = {};
 my $bitfield_table = [];
@@ -50,6 +51,8 @@ my $gc_alias_checkers = [];
 sub progress($);
 sub main {
     $db_sections->{'AAA_header'} = header();
+    # Load NameAliases first as a workaround for control character alias names
+    NameAliases();
 
     # Load all the things
     UnicodeData(
@@ -89,7 +92,6 @@ sub main {
         'Hangul_Syllable_Type', { Not_Applicable => 0 }, 1, 1);
     Jamo();
     LineBreak();
-    NameAliases();
     NamedSequences();
     binary_props('PropList');
     enumerated_property('Scripts', 'Script', { Unknown => 0 }, 1, 1);
@@ -1368,7 +1370,14 @@ sub UnicodeData {
         my $code = hex $code_str;
         my $plane_num = $code >> 16;
         if ($name eq '<control>' ) {
-            $name = sprintf '<control-%.4x>', $code;
+            say Dumper($uniname_aliases->{$code});
+            if ( defined $uniname_aliases->{$code} ) {
+              $name = $uniname_aliases->{$code}[0];
+            }
+            else {
+                $name = sprintf '<control-%.4x>', $code;
+            }
+
         }
         my $point = {
             # Unicode_1_Name is not used yet. We should make sure it ends up
@@ -1601,9 +1610,10 @@ sub LineBreak {
 
 sub NameAliases {
     each_line('NameAliases', sub { $_ = shift;
-        my ($code_str, $name) = split /\s*[;#]\s*/;
-        $aliases->{$name} = hex $code_str;
+        my ($code_str, $name, $type) = split /\s*[;#]\s*/;
+        push @{$uniname_aliases->{hex $code_str}}, $name;
     });
+    say Dumper(%$uniname_aliases);
 }
 
 sub NamedSequences {
