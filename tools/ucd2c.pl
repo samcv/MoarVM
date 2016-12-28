@@ -1053,12 +1053,12 @@ struct MVMUnicodeNamedValue {
         }
     }, 1);
     my %done;
-    for my $propname (qw(gc sc), sort keys %lines) {
+    for my $propname (qw(sc), sort keys %lines) {
         for (sort keys %{$lines{$propname}}) {
             $done{"$propname$_"} ||= push @lines, $lines{$propname}->{$_};
         }
     }
-    for my $key (qw(gc sc), sort keys %$prop_names) {
+    for my $key (qw(sc), sort keys %$prop_names) {
         $_ = $key;
         $done{"$key"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
         $done{"$key"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
@@ -1135,7 +1135,7 @@ sub emit_unicode_property_value_keypairs {
                     my $value    = $binary_properties->{$unionname}->{bit_width};
                     for my $part (@parts) {
                         if ( exists $lines{$propname}->{$part} ) {
-                            die "propname $propname part $part already exists";
+                            warn "propname $propname part $part already exists";
                         }
                         $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}";
                         #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
@@ -1171,10 +1171,10 @@ sub emit_unicode_property_value_keypairs {
             }
             for my $part (@parts) {
                 # not sure what we're skipping here…
-                s/[\-\s]/./g;
-                next if /[\.\|]/;
+                $part =~ s/[\-\s]/./g;
+                next if $part =~ /[\.\|]/;
                 if ( exists $lines{$propname}->{$part} ) {
-                    die "$propname already in here. warning assigning:" . $prop_val + $value . "\n";
+                    warn "$propname already in here. warning assigning:" . $prop_val + $value . "\n";
                 }
                 $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}"; #22 11
                 #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
@@ -1185,7 +1185,7 @@ sub emit_unicode_property_value_keypairs {
     my %done;
     # Aliases like L appear in several categories, but we prefere gc and sc.
     for my $propname (qw(gc sc), sort keys %lines) {
-        for (keys %{$lines{$propname}}) {
+        for (sort keys %{$lines{$propname}}) {
             $done{"$propname$_"} ||= push @lines, $lines{$propname}->{$_};
         }
     }
