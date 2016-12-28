@@ -2,7 +2,7 @@ use v5.14;
 use warnings; use strict;
 use Data::Dumper;
 use Carp qw(cluck);
-$Data::Dumper::Maxdepth = 2;
+$Data::Dumper::Maxdepth = 3;
 # Make C versions of the Unicode tables.
 
 # Before running, download zip files from http://www.unicode.org/Public/zipped/
@@ -973,37 +973,63 @@ struct MVMUnicodeNamedValue {
     const char *name;
     MVMint32 value;
 };";
+    # This variable needs to be renamed…
     my @lines = ();
     each_line('PropertyAliases', sub { $_ = shift;
         my @aliases = split /\s*[#;]\s*/;
         for my $name (@aliases) {
             if (exists $prop_names->{$name}) {
-                for (@aliases) {
-                    $prop_names->{$_} = $prop_names->{$name}
-                        unless $_ eq $name;
-                    $prop_codes->{$_} = $name;
+                for my $alias (@aliases) {
+                    say (@aliases);
+                    if ( exists $prop_names->{$alias} ) {
+                        warn "not adding since i seen before $alias $name";
+                        #last;
+                    }
+                    # should this be reversed?
+                    $prop_names->{$alias} = $prop_names->{$name}
+                        unless $alias eq $name;
+                    $prop_codes->{$alias} = $name;
                 }
                 last;
             }
         }
     });
+    say Dumper(%$prop_codes);
     my %aliases;
-    my %lines;
+    our %lines;
+    sub add_to_lines {
+        my ($value, $propname , $right_side) = @_;
+        if ( exists $lines{$propname}->{$value} ) {
+          say "returning because it already exists";
+          return;
+        }
+        $lines{$propname}->{$value} = $right_side;
+        if ( $value =~ s/_//g and !exists $lines{$propname}->{$value} ) {
+          say "Found underscore and doesn't exist so adding alias $value";
+          $lines{$propname}->{$value} = $right_side;
+        }
+        if ( $value =~ y/A-Z/a-z/ and !exists $lines{$propname}->{$value} ) {
+          $lines{$propname}->{$value} = $right_side;
+        }
+    }
     each_line('PropertyValueAliases', sub { $_ = shift;
+        say $_;
         if (/^# (\w+) \((\w+)\)/) {
+            my $thing = $_;
+            say $thing;
             $aliases{$2} = [$1];
-            return
+            say "Set \$aliases{$2} = [$1]";
+            #return
         }
         return if /^(?:#|\s*$)/;
         my @parts = split /\s*[#;]\s*/;
         my $propname = shift @parts;
+        return if $propname ne 'sc';
         if (exists $prop_names->{$propname}) {
             if (($parts[0] eq 'Y' || $parts[0] eq 'N') && ($parts[1] eq 'Yes' || $parts[1] eq 'No')) {
                 my $prop_val = $prop_names->{$propname};
-                for ($propname, @{$aliases{$propname} // []}) {
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                for my $value ($propname, @{$aliases{$propname} // []}) {
+                    add_to_lines($value, $propname, "{\"$value\",$prop_val}");
                 }
                 return
             }
@@ -1012,10 +1038,8 @@ struct MVMUnicodeNamedValue {
                 my $unionname = $parts[0];
                 if (exists $binary_properties->{$unionname}) {
                     my $prop_val = $binary_properties->{$unionname}->{field_index};
-                    for (@parts) {
-                        $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                        #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                        #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                    for my $value (@parts) {
+                      add_to_lines($value, $propname, "{\"$value\",$prop_val}");
                     }
                 }
             }
@@ -1027,20 +1051,20 @@ struct MVMUnicodeNamedValue {
         }
     }, 1);
     my %done;
-    for my $propname (qw(gc sc), keys %lines) {
-        for (keys %{$lines{$propname}}) {
+    for my $propname (qw(gc sc), sort keys %lines) {
+        for (sort keys %{$lines{$propname}}) {
             $done{"$propname$_"} ||= push @lines, $lines{$propname}->{$_};
         }
     }
-    for my $key (qw(gc sc), keys %$prop_names) {
+    for my $key (qw(gc sc), sort keys %$prop_names) {
         $_ = $key;
         $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-        #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-        #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
+        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         for (@{ $aliases{$key} }) {
             $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-            #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-            #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
+            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         }
     }
     $hout .= "
@@ -1057,7 +1081,7 @@ sub emit_unicode_property_value_keypairs {
     my $hout = "";
     my @lines = ();
     my $property;
-    for (keys %$enumerated_properties) {
+    for (sort keys %$enumerated_properties) {
         my $enum = $enumerated_properties->{$_}->{enum};
         my $toadd = {};
         for (keys %$enum) {
@@ -1071,9 +1095,12 @@ sub emit_unicode_property_value_keypairs {
     }
     my %lines;
     my %aliases;
-    for (keys %$binary_properties) {
-        my $prop_val = ($prop_names->{$_} << 24) + 1;
-        $lines{_custom_}->{$_} = "{\"$_\",$prop_val}";
+    for my $bin_p_key (sort keys %$binary_properties) {
+        my $prop_val = ($prop_names->{$bin_p_key} << 24) + 1;
+        if ( exists $lines{_custom_}->{$bin_p_key} ) {
+          die "$prop_val $bin_p_key";
+        }
+        $lines{_custom_}->{$bin_p_key} = "{\"$bin_p_key\",$prop_val}";
         #$lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
         #$lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
     }
@@ -1103,8 +1130,11 @@ sub emit_unicode_property_value_keypairs {
                 if (exists $binary_properties->{$unionname}) {
                     my $prop_val = $binary_properties->{$unionname}->{field_index} << 24;
                     my $value    = $binary_properties->{$unionname}->{bit_width};
-                    for (@parts) {
-                        $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}";
+                    for my $part (@parts) {
+                        if ( exists $lines{$propname}->{$part} ) {
+                            die "propname $propname part $part already exists";
+                        }
+                        $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}";
                         #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
                         #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
                     }
@@ -1114,8 +1144,12 @@ sub emit_unicode_property_value_keypairs {
             }
             my $key = $prop_codes->{$propname};
             my $found = 0;
+            if ( ! defined $all_properties->{$key}->{'enum'} ) {
+              warn "can't find $key $propname enum thing";
+              return;
+            }
+
             my $enum = $all_properties->{$key}->{'enum'};
-            die $propname unless $enum;
             my $value;
             for (@parts) {
                 my $alias = $_;
@@ -1129,14 +1163,17 @@ sub emit_unicode_property_value_keypairs {
             #die Dumper($enum) unless defined $value;
             unless (defined $value) {
                 print "warning: couldn't resolve property $propname property value alias\n";
-                print "\$enum dump: [" . Dumper($enum) . "]\n";
+                #print "\$enum dump: [" . Dumper($enum) . "]\n";
                 return;
             }
-            for (@parts) {
+            for my $part (@parts) {
                 # not sure what we're skipping here…
                 s/[\-\s]/./g;
                 next if /[\.\|]/;
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}"; #22 11
+                if ( exists $lines{$propname}->{$part} ) {
+                    die "$propname already in here. warning assigning:" . $prop_val + $value . "\n";
+                }
+                $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}"; #22 11
                 #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
                 #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
             }
@@ -1372,7 +1409,7 @@ sub UnicodeData {
         my $code = hex $code_str;
         my $plane_num = $code >> 16;
         if ($name eq '<control>' ) {
-            say Dumper($uniname_aliases->{$code});
+            #say Dumper($uniname_aliases->{$code});
             if ( defined $uniname_aliases->{$code} ) {
               $name = $uniname_aliases->{$code}[0];
             }
@@ -1615,7 +1652,7 @@ sub NameAliases {
         my ($code_str, $name, $type) = split /\s*[;#]\s*/;
         push @{$uniname_aliases->{hex $code_str}}, $name;
     });
-    say Dumper(%$uniname_aliases);
+    #say Dumper(%$uniname_aliases);
 }
 
 sub NamedSequences {
