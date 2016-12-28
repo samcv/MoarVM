@@ -982,7 +982,9 @@ struct MVMUnicodeNamedValue {
                 for my $alias (@aliases) {
                     say (@aliases);
                     if ( exists $prop_names->{$alias} ) {
-                        warn "not adding since i seen before $alias $name";
+                        warn "i have seen before $alias $name";
+                        # not sure why we can't last here, but if we don't certain
+                        # properties do not add aliases (space)
                         #last;
                     }
                     # should this be reversed?
@@ -990,7 +992,7 @@ struct MVMUnicodeNamedValue {
                         unless $alias eq $name;
                     $prop_codes->{$alias} = $name;
                 }
-                last;
+                last; # why is this last here?
             }
         }
     });
@@ -1024,7 +1026,7 @@ struct MVMUnicodeNamedValue {
         return if /^(?:#|\s*$)/;
         my @parts = split /\s*[#;]\s*/;
         my $propname = shift @parts;
-        return if $propname ne 'sc';
+        return if $propname ne 'sc' and $propname ne 'gc';
         if (exists $prop_names->{$propname}) {
             if (($parts[0] eq 'Y' || $parts[0] eq 'N') && ($parts[1] eq 'Yes' || $parts[1] eq 'No')) {
                 my $prop_val = $prop_names->{$propname};
@@ -1058,13 +1060,14 @@ struct MVMUnicodeNamedValue {
     }
     for my $key (qw(gc sc), sort keys %$prop_names) {
         $_ = $key;
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
-        for (@{ $aliases{$key} }) {
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+        $done{"$key"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
+        $done{"$key"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
+        $done{"$key"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+        for my $key2 (@{ $aliases{$key} }) {
+            # this may be wrong
+            $done{"$key$key2"} ||= push @lines, "{\"$key2\",$prop_names->{$key}}";
+            $done{"$key$key2"} ||= push @lines, "{\"$key2\",$prop_names->{$key}}" if $key2 =~ s/_//g and $key2 ne 'Sc' and $key2 ne 'Space';
+            $done{"$key$key2"} ||= push @lines, "{\"$key2\",$prop_names->{$key}}" if $key2 ne 'Space' and length $key2 > 2 and $key2 =~ y/A-Z/a-z/;
         }
     }
     $hout .= "
