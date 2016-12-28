@@ -1000,18 +1000,18 @@ struct MVMUnicodeNamedValue {
     my %aliases;
     our %lines;
     sub add_to_lines {
-        my ($value, $propname , $right_side) = @_;
+        my ($value, $propname , $prop_val) = @_;
         if ( exists $lines{$propname}->{$value} ) {
           say "returning because it already exists";
           return;
         }
-        $lines{$propname}->{$value} = $right_side;
+        $lines{$propname}->{$value} = "{\"$value\",$prop_val}";
         if ( $value =~ s/_//g and !exists $lines{$propname}->{$value} ) {
           say "Found underscore and doesn't exist so adding alias $value";
-          $lines{$propname}->{$value} = $right_side;
+          $lines{$propname}->{$value} = "{\"$value\",$prop_val}";
         }
         if ( $value =~ y/A-Z/a-z/ and !exists $lines{$propname}->{$value} ) {
-          $lines{$propname}->{$value} = $right_side;
+          $lines{$propname}->{$value} = "{\"$value\",$prop_val}";
         }
     }
     each_line('PropertyValueAliases', sub { $_ = shift;
@@ -1031,7 +1031,7 @@ struct MVMUnicodeNamedValue {
             if (($parts[0] eq 'Y' || $parts[0] eq 'N') && ($parts[1] eq 'Yes' || $parts[1] eq 'No')) {
                 my $prop_val = $prop_names->{$propname};
                 for my $value ($propname, @{$aliases{$propname} // []}) {
-                    add_to_lines($value, $propname, "{\"$value\",$prop_val}");
+                    add_to_lines($value, $propname, $prop_val);
                 }
                 return
             }
@@ -1041,7 +1041,7 @@ struct MVMUnicodeNamedValue {
                 if (exists $binary_properties->{$unionname}) {
                     my $prop_val = $binary_properties->{$unionname}->{field_index};
                     for my $value (@parts) {
-                      add_to_lines($value, $propname, "{\"$value\",$prop_val}");
+                      add_to_lines($value, $propname, $prop_val);
                     }
                 }
             }
@@ -1174,7 +1174,7 @@ sub emit_unicode_property_value_keypairs {
                 $part =~ s/[\-\s]/./g;
                 next if $part =~ /[\.\|]/;
                 if ( exists $lines{$propname}->{$part} ) {
-                    warn "$propname already in here. warning assigning:" . $prop_val + $value . "\n";
+                    warn "$propname already in here. warning assigning:" . ($prop_val + $value) . "\n";
                 }
                 $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}"; #22 11
                 $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}" if s/_//g;
