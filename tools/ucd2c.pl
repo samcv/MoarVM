@@ -252,7 +252,7 @@ sub derived_property {
     });
     my @keys = ();
     # stash the keys in an array so they can be put in a table later
-    for my $key (keys %{$base->{enum}}) {
+    for my $key (sort keys %{$base->{enum}}) {
         $keys[$base->{enum}->{$key}] = $key;
     }
     $base->{keys} = \@keys;
@@ -285,7 +285,7 @@ sub enumerated_property {
     print "\n    bitwidth: ",$base->{bit_width},"\n" if $DEBUG;
     my @keys = ();
     # stash the keys in an array so they can be put in a table later
-    for my $key (keys %{$base->{enum}}) {
+    for my $key (sort keys %{$base->{enum}}) {
         if ($is_subtype{$key}) {
             register_enumerated_property($key, {%$base});
             delete $base->{enum}->{$key};
@@ -1002,8 +1002,8 @@ struct MVMUnicodeNamedValue {
                 my $prop_val = $prop_names->{$propname};
                 for ($propname, @{$aliases{$propname} // []}) {
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
+                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
                 }
                 return
             }
@@ -1014,8 +1014,8 @@ struct MVMUnicodeNamedValue {
                     my $prop_val = $binary_properties->{$unionname}->{field_index};
                     for (@parts) {
                         $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                        $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                        $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                        #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
+                        #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
                     }
                 }
             }
@@ -1035,12 +1035,12 @@ struct MVMUnicodeNamedValue {
     for my $key (qw(gc sc), keys %$prop_names) {
         $_ = $key;
         $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+        #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
+        #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         for (@{ $aliases{$key} }) {
             $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+            #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
+            #$done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         }
     }
     $hout .= "
@@ -1074,8 +1074,8 @@ sub emit_unicode_property_value_keypairs {
     for (keys %$binary_properties) {
         my $prop_val = ($prop_names->{$_} << 24) + 1;
         $lines{_custom_}->{$_} = "{\"$_\",$prop_val}";
-        $lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-        $lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+        #$lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
+        #$lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
     }
     each_line('PropertyValueAliases', sub { $_ = shift;
         if (/^# (\w+) \((\w+)\)/) {
@@ -1092,8 +1092,8 @@ sub emit_unicode_property_value_keypairs {
                 $prop_val++; # one bit width
                 for ($propname, ($aliases{$propname} // ())) {
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
+                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
                 }
                 return
             }
@@ -1105,8 +1105,8 @@ sub emit_unicode_property_value_keypairs {
                     my $value    = $binary_properties->{$unionname}->{bit_width};
                     for (@parts) {
                         $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}";
-                        $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
-                        $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
+                        #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
+                        #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
                     }
                     die Dumper($propname) if /^letter$/
                 }
@@ -1123,26 +1123,28 @@ sub emit_unicode_property_value_keypairs {
                 $alias    = lc($alias);
                 if (exists $enum->{$alias}) {
                     $value = $enum->{$alias};
-                    last;
+                    #last;
                 }
             }
             #die Dumper($enum) unless defined $value;
             unless (defined $value) {
-                #print "warning: couldn't resolve property $propname property value alias $first\n";
+                print "warning: couldn't resolve property $propname property value alias\n";
+                print "\$enum dump: [" . Dumper($enum) . "]\n";
                 return;
             }
             for (@parts) {
+                # not sure what we're skipping here…
                 s/[\-\s]/./g;
                 next if /[\.\|]/;
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}";
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
+                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}"; #22 11
+                #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
+                #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
             }
         }
     }, 1);
     my %done;
     # Aliases like L appear in several categories, but we prefere gc and sc.
-    for my $propname (qw(gc sc), keys %lines) {
+    for my $propname (qw(gc sc), sort keys %lines) {
         for (keys %{$lines{$propname}}) {
             $done{"$propname$_"} ||= push @lines, $lines{$propname}->{$_};
         }
@@ -1428,7 +1430,7 @@ sub UnicodeData {
             my $current = $ideograph_start;
             while ($current->{code} < $point->{code} - 1) {
                 my $new = { Any => 1 };
-                for (keys %$current) {
+                for (sort keys %$current) {
                     $new->{$_} = $current->{$_};
                 }
                 $new->{code}++;
@@ -1534,14 +1536,14 @@ sub DerivedNormalizationProps {
         NFD_QC => 1,
         NFKD_QC => 1
     };
-    register_binary_property($_) for ((keys %$binary),(keys %$inverted_binary));
+    register_binary_property($_) for ((sort keys %$binary),(sort keys %$inverted_binary));
     my $trinary = {
         NFC_QC => 1,
         NFKC_QC => 1,
         NFG_QC => 1,
     };
     my $trinary_values = { 'N' => 0, 'Y' => 1, 'M' => 2 };
-    register_enumerated_property($_, { enum => $trinary_values, bit_width => 2, 'keys' => ['N','Y','M'] }) for (keys %$trinary);
+    register_enumerated_property($_, { enum => $trinary_values, bit_width => 2, 'keys' => ['N','Y','M'] }) for (sort keys %$trinary);
     each_line('DerivedNormalizationProps', sub { $_ = shift;
         my ($range, $property_name, $value) = split /\s*[;#]\s*/;
         if (exists $binary->{$property_name}) {
@@ -1600,7 +1602,7 @@ sub LineBreak {
         });
     });
     my @keys = ();
-    for my $key (keys %{$base->{enum}}) {
+    for my $key (sort keys %{$base->{enum}}) {
         $keys[$base->{enum}->{$key}] = $key;
     }
     $base->{keys} = \@keys;
