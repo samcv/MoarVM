@@ -1087,12 +1087,12 @@ sub emit_unicode_property_value_keypairs {
     for (sort keys %$enumerated_properties) {
         my $enum = $enumerated_properties->{$_}->{enum};
         my $toadd = {};
-        for (keys %$enum) {
+        for (sort keys %$enum) {
             my $key = lc("$_");
             $key =~ s/[_\-\s]/./g;
             $toadd->{$key} = $enum->{$_};
         }
-        for (keys %$toadd) {
+        for (sort keys %$toadd) {
             $enum->{$_} = $toadd->{$_};
         }
     }
@@ -1104,8 +1104,8 @@ sub emit_unicode_property_value_keypairs {
           die "$prop_val $bin_p_key";
         }
         $lines{_custom_}->{$bin_p_key} = "{\"$bin_p_key\",$prop_val}";
-        #$lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-        #$lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+        $lines{_custom_}->{$bin_p_key} = "{\"$bin_p_key\",$prop_val}" if s/_//g;
+        $lines{_custom_}->{$bin_p_key} = "{\"$bin_p_key\",$prop_val}" if y/A-Z/a-z/;
     }
     each_line('PropertyValueAliases', sub { $_ = shift;
         if (/^# (\w+) \((\w+)\)/) {
@@ -1120,10 +1120,10 @@ sub emit_unicode_property_value_keypairs {
             # emit binary properties
             if (($parts[0] eq 'Y' || $parts[0] eq 'N') && ($parts[1] eq 'Yes' || $parts[1] eq 'No')) {
                 $prop_val++; # one bit width
-                for ($propname, ($aliases{$propname} // ())) {
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                    #$lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                for my $part ($propname, ($aliases{$propname} // ())) {
+                    $lines{$propname}->{$part} = "{\"$part\",$prop_val}";
+                    $lines{$propname}->{$part} = "{\"$part\",$prop_val}" if $part =~ s/_//g;
+                    $lines{$propname}->{$part} = "{\"$part\",$prop_val}" if $part =~ y/A-Z/a-z/;
                 }
                 return
             }
@@ -1138,8 +1138,8 @@ sub emit_unicode_property_value_keypairs {
                             warn "propname $propname part $part already exists";
                         }
                         $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}";
-                        #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
-                        #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
+                        $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}" if $part =~ s/_//g;
+                        $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}" if $part =~ y/A-Z/a-z/;
                     }
                     die Dumper($propname) if /^letter$/
                 }
@@ -1177,8 +1177,8 @@ sub emit_unicode_property_value_keypairs {
                     warn "$propname already in here. warning assigning:" . $prop_val + $value . "\n";
                 }
                 $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}"; #22 11
-                #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
-                #$lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
+                $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}" if s/_//g;
+                $lines{$propname}->{$part} = "{\"$part\",".($prop_val + $value)."}" if y/A-Z/a-z/;
             }
         }
     }, 1);
@@ -1205,7 +1205,7 @@ sub emit_composition_lookup {
     # first codepoint of the decomposition of a primary composite, mapped to
     # an array of [second codepoint, primary composite].
     my @lookup;
-    for my $point_hex (keys %$points_by_hex) {
+    for my $point_hex (sort keys %$points_by_hex) {
         # Not interested in anything in the set of full composition exclusions.
         my $point = $points_by_hex->{$point_hex};
         next if $point->{Full_Composition_Exclusion};
