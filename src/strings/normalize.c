@@ -553,7 +553,7 @@ static MVMint32 is_spacing_mark(MVMThreadContext *tc, MVMCodepoint cp) {
         return cp == 0x0E33 || cp == 0x0EB3;
     }
 }
-static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint b) {
+static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint b, MVMint32 mode) {
     int GCB_a = MVM_unicode_codepoint_get_property_int(tc, a, MVM_UNICODE_PROPERTY_GRAPHEME_CLUSTER_BREAK);
     int GCB_b = MVM_unicode_codepoint_get_property_int(tc, b, MVM_UNICODE_PROPERTY_GRAPHEME_CLUSTER_BREAK);
     /* Don't break between \r and \n, but otherwise break around \r. */
@@ -579,8 +579,15 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
 
     switch (GCB_a) {
         case MVM_UNICODE_PROPERTY_GCB_REGIONAL_INDICATOR:
-            if ( GCB_b == MVM_UNICODE_PROPERTY_GCB_REGIONAL_INDICATOR )
-                return 0;
+            // If this is the 3rd regional indicator we've seen, break
+            if (mode == -8 ) {
+                fprintf(stderr, "I think this is the 3rd regional indicators, BREAK\n");
+                return 1;
+            }
+            else if ( GCB_b == MVM_UNICODE_PROPERTY_GCB_REGIONAL_INDICATOR ) {
+                    fprintf(stderr, "I see two regional indicators, returning -8 NOBREAK\n");
+                    return -8;
+            }
             break;
         // Don't break after Prepend Grapheme_Cluster_Break=Prepend
         case MVM_UNICODE_PROPERTY_GCB_PREPEND:
@@ -635,9 +642,11 @@ static void grapheme_composition(MVMThreadContext *tc, MVMNormalizer *n, MVMint3
         MVMint32 starterish = from;
         MVMint32 insert_pos = from;
         MVMint32 pos        = from;
+        MVMint32 should_break_mode = 0;
         while (pos < to) {
             MVMint32 next_pos = pos + 1;
-            if (next_pos == to || should_break(tc, n->buffer[pos], n->buffer[next_pos])) {
+            should_break_mode = should_break(tc, n->buffer[pos], n->buffer[next_pos], should_break_mode);
+            if (next_pos == to || should_break_mode > 0) {
                 /* Last in buffer or next code point is a non-starter; turn
                  * sequence into a synthetic. */
                 MVMGrapheme32 g = MVM_nfg_codes_to_grapheme(tc, n->buffer + starterish, next_pos - starterish);
