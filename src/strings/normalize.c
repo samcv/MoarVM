@@ -350,21 +350,24 @@ static MVMint32 is_control_beyond_latin1(MVMThreadContext *tc, MVMCodepoint in) 
         /* Consider general property. */
         const char *genprop = MVM_unicode_codepoint_get_property_cstr(tc, in,
             MVM_UNICODE_PROPERTY_GENERAL_CATEGORY);
-        if (genprop[0] == 'Z') {
-            /* Line_Separator and Paragraph_Separator are controls. */
-            return genprop[1] == 'l' || genprop[1] == 'p';
+        switch (genprop[0]) {
+            case 'Z':
+                /* Line_Separator and Paragraph_Separator are controls. */
+                return genprop[1] == 'l' || genprop[1] == 'p';
+            case 'C':
+                /* Control, Surrogate are controls. */
+                if (genprop[1] == 'c' || genprop[1] == 's') {
+                    return 1;
+                }
+                if (genprop[1] == 'f' ) {
+                    /* Format can have special properties (not control) */
+                    return 0;
+                }
         }
-        if (genprop[0] == 'C') {
-            /* Control, Surrogate, and Format are controls. */
-            if (genprop[1] == 'c' || genprop[1] == 's') {
-                return 1;
-            }
-
-            /* Unassigned is, but only for Default_Ignorable_Code_Point. */
-            if (genprop[1] == 'n') {
-                return MVM_unicode_codepoint_get_property_int(tc, in,
-                    MVM_UNICODE_PROPERTY_DEFAULT_IGNORABLE_CODE_POINT) != 0;
-            }
+        /* Unassigned is, but only for Default_Ignorable_Code_Point. */
+        if (genprop[1] == 'n') {
+            return MVM_unicode_codepoint_get_property_int(tc, in,
+                MVM_UNICODE_PROPERTY_DEFAULT_IGNORABLE_CODE_POINT) != 0;
         }
     }
     return 0;
