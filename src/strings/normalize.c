@@ -556,6 +556,14 @@ static MVMint32 is_spacing_mark(MVMThreadContext *tc, MVMCodepoint cp) {
 static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint b, MVMint32 mode) {
     int GCB_a = MVM_unicode_codepoint_get_property_int(tc, a, MVM_UNICODE_PROPERTY_GRAPHEME_CLUSTER_BREAK);
     int GCB_b = MVM_unicode_codepoint_get_property_int(tc, b, MVM_UNICODE_PROPERTY_GRAPHEME_CLUSTER_BREAK);
+    if ( mode < 0 ) {
+        //fprintf(stderr, "0x%lx 0x%lx | mode:  %ld\n", (long int) a, (long int) b, (long int) mode);
+    }
+
+    /* Modes:
+       -8 | Have seen 2 regional indicators last
+      -16 | Saw an emoji base last or are in a potential ZWJ
+    */
     /* Don't break between \r and \n, but otherwise break around \r. */
     if (a == 0x0D && b == 0x0A)
         return 0;
@@ -579,13 +587,18 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
 
     switch (GCB_a) {
         case MVM_UNICODE_PROPERTY_GCB_REGIONAL_INDICATOR:
+            // If it's followed by ZWJ then we need to break not break
+            // and don't return -8 because the flag sequence is over
+            if ( GCB_b == MVM_UNICODE_PROPERTY_GCB_ZWJ ) {
+                return 0;
+            }
             // If this is the 3rd regional indicator we've seen, break
             if (mode == -8 ) {
-                fprintf(stderr, "I think this is the 3rd regional indicators, BREAK\n");
+                //fprintf(stderr, "I think this is the 3rd regional indicators, BREAK\n");
                 return 1;
             }
             else if ( GCB_b == MVM_UNICODE_PROPERTY_GCB_REGIONAL_INDICATOR ) {
-                    fprintf(stderr, "I see two regional indicators, returning -8 NOBREAK\n");
+                    //fprintf(stderr, "I see two regional indicators, returning -8 NOBREAK\n");
                     return -8;
             }
             break;
@@ -612,11 +625,22 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
     switch (GCB_b) {
         // Don't break before extending chars
         case MVM_UNICODE_PROPERTY_GCB_EXTEND:
+            // Return -16
+            // (E_Base | EBG) Extend*	×	E_Modifier
+            if ( GCB_a == MVM_UNICODE_PROPERTY_GCB_E_BASE )
+                return -16;
+            if ( GCB_a == MVM_UNICODE_PROPERTY_GCB_E_BASE_GAZ )
+                return -16;
             return 0;
         // Don't break before ZWJ
         case MVM_UNICODE_PROPERTY_GCB_ZWJ:
             return 0;
         case MVM_UNICODE_PROPERTY_GCB_E_MODIFIER:
+            // Return -16
+            // (E_Base | EBG) Extend*	×	E_Modifier
+            if ( mode == -16 ) {
+                return -16;
+            }
             switch (GCB_a) {
                 case MVM_UNICODE_PROPERTY_GCB_E_BASE_GAZ:
                     return 0;
@@ -675,7 +699,7 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
     int is_prepend = is_grapheme_prepend(tc, in);
     if (mode == -1 ) {
         // we saw a prepend character last time
-        fprintf(stderr, "I see %lx Mode: %li Line 704\n", in, mode);
+        //fprintf(stderr, "I see %lx Mode: %li Line 704\n", in, mode);
 
     }
     /* If it's a control character (outside of the range we checked in the
@@ -720,7 +744,7 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
 
     /* If we didn't pass quick check or the previous char was GCB=Extend */
     if (!qc_in || mode == -1) {
-        fprintf(stderr, "Mode: %li Line 689\n", mode);
+        //fprintf(stderr, "Mode: %li Line 689\n", mode);
         /* If we're composing, then decompose the last thing placed in the
          * buffer, if any. We need to do this since it may have passed
          * quickcheck, but having seen some character that does pass then we
@@ -730,7 +754,7 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
             n->buffer_end--;
             decomp_codepoint_to_buffer(tc, n, decomp);
             if ( in == 0x227 ) {
-                fprintf(stderr, "I see 0x227 Mode: %li Line 699\n", mode);
+                //fprintf(stderr, "I see 0x227 Mode: %li Line 699\n", mode);
             }
         }
 
@@ -740,7 +764,7 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
         /* if it was a Prepending character make sure to return -1 so we know
          * the next character needs to be combined onto it */
         if (is_prepend) {
-            fprintf(stderr, "Saw a prepend so returning -1\n");
+            //fprintf(stderr, "Saw a prepend so returning -1\n");
             return -1;
         }
         return 0;
