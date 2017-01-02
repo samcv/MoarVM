@@ -669,8 +669,12 @@ static void grapheme_composition(MVMThreadContext *tc, MVMNormalizer *n, MVMint3
         MVMint32 should_break_mode = 0;
         while (pos < to) {
             MVMint32 next_pos = pos + 1;
-            should_break_mode = should_break(tc, n->buffer[pos], n->buffer[next_pos], should_break_mode);
-            if (next_pos == to || should_break_mode > 0) {
+            MVMint32 do_break = next_pos == to;
+            if (! do_break)
+                do_break = (
+                    should_break_mode = should_break(tc, n->buffer[pos], n->buffer[next_pos], should_break_mode)
+                ) > 0;
+            if (do_break) {
                 /* Last in buffer or next code point is a non-starter; turn
                  * sequence into a synthetic. */
                 MVMGrapheme32 g = MVM_nfg_codes_to_grapheme(tc, n->buffer + starterish, next_pos - starterish);
