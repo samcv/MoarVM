@@ -23,6 +23,7 @@ MVMString * MVM_string_utf16_decode(MVMThreadContext *tc,
 #endif
     MVMNormalizer norm;
     MVMint32 ready;
+    MVMint32 mode = 0;
 
     if (bytes % 2) {
         MVM_exception_throw_adhoc(tc, "Malformed UTF-16; odd number of bytes");
@@ -76,7 +77,8 @@ MVMString * MVM_string_utf16_decode(MVMThreadContext *tc,
         }
 
         /* TODO: check for invalid values */
-        ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, value, &g);
+        mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, value, &g, mode);
+        ready = MVM_get_ready_status(mode);
         if (ready) {
             result->body.storage.blob_32[str_pos++] = g;
             while (--ready > 0)

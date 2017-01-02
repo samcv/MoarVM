@@ -92,6 +92,7 @@ static MVMString * re_nfg(MVMThreadContext *tc, MVMString *in) {
     MVMNormalizer norm;
     MVMCodepointIter ci;
     MVMint32 ready;
+    MVMint32 mode = 0;
     MVMString *out;
     MVMuint32 bufsize = in->body.num_graphs;
 
@@ -105,7 +106,8 @@ static MVMString * re_nfg(MVMThreadContext *tc, MVMString *in) {
     MVM_string_ci_init(tc, &ci, in, 0);
     while (MVM_string_ci_has_more(tc, &ci)) {
         MVMGrapheme32 g;
-        ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, MVM_string_ci_get_codepoint(tc, &ci), &g);
+        mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, MVM_string_ci_get_codepoint(tc, &ci), &g, mode);
+        ready = MVM_get_ready_status(mode);
         if (ready) {
             if (out_pos + ready > bufsize) {
                 /* Doubling up the buffer size seems excessive, so just
@@ -604,6 +606,7 @@ MVMGrapheme32 MVM_string_ord_basechar_at(MVMThreadContext *tc, MVMString *s, MVM
     MVMGrapheme32 g;
     MVMNormalizer norm;
     MVMint32 ready;
+    MVMint32 mode = 0;
 
     MVM_string_check_arg(tc, s, "ord_basechar_at");
 
@@ -619,7 +622,8 @@ MVMGrapheme32 MVM_string_ord_basechar_at(MVMThreadContext *tc, MVMString *s, MVM
     }
     else {
         MVM_unicode_normalizer_init(tc, &norm, MVM_NORMALIZE_NFD);
-        ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, g, &g);
+        mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, g, &g, mode);
+        MVM_get_ready_status(mode);
         MVM_unicode_normalizer_eof(tc, &norm);
         if (!ready)
             g = MVM_unicode_normalizer_get_grapheme(tc, &norm);
@@ -1827,7 +1831,7 @@ MVMString * MVM_string_chr(MVMThreadContext *tc, MVMCodepoint cp) {
         MVM_exception_throw_adhoc(tc, "chr codepoint cannot be negative");
 
     MVM_unicode_normalizer_init(tc, &norm, MVM_NORMALIZE_NFG);
-    if (!MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, cp, &g)) {
+    if ( !MVM_get_ready_status( MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, cp, &g, 0) ) ) {
         MVM_unicode_normalizer_eof(tc, &norm);
         g = MVM_unicode_normalizer_get_grapheme(tc, &norm);
     }

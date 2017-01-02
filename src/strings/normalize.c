@@ -10,6 +10,30 @@
 #define MVM_UNICODE_PROPERTY_GCB_ZWJ               15
 #define MVM_UNICODE_PROPERTY_GCB_GLUE_AFTER_ZWJ    16
 
+
+MVMint32 MVM_get_ready_status(MVMint32 mode ) {
+    MVMint32 ready;
+    // Prepend
+    if ( mode == -1 ) {
+        ready = 0;
+    }
+    // Extend or more info
+    else if ( mode == 0 ) {
+        ready = 0;
+    }
+    else if ( mode == 1 ) {
+        ready = 1;
+    }
+    // MVM_unicode_normalizer_process_codepoint_norm_terminator returns higher values
+    // So any positive numbers mean this
+    else if (mode > 1 ) {
+        return mode;
+    }
+    else {
+        MVM_panic(1, "In MVM_get_ready_status got: %d\nI don't know what that mode means.", mode);
+    }
+    return ready;
+}
 /* Maps outside-world normalization form codes to our internal set, validating
  * that we got something valid. */
 MVMNormalization MVN_unicode_normalizer_form(MVMThreadContext *tc, MVMint64 form_in) {
@@ -45,6 +69,7 @@ void MVM_unicode_normalize_codepoints(MVMThreadContext *tc, const MVMObject *in,
     MVMCodepoint  *result;
     MVMint64       input_pos, input_codes, result_pos, result_alloc;
     MVMint32       ready;
+    MVMint32       mode = 0;
 
     /* Validate input/output array. */
     assert_codepoint_array(tc, in, "Normalization input must be native array of 32-bit integers");
@@ -66,7 +91,8 @@ void MVM_unicode_normalize_codepoints(MVMThreadContext *tc, const MVMObject *in,
     result_pos = 0;
     while (input_pos < input_codes) {
         MVMCodepoint cp;
-        ready = MVM_unicode_normalizer_process_codepoint(tc, &norm, input[input_pos], &cp);
+        mode = MVM_unicode_normalizer_process_codepoint_full(tc, &norm, input[input_pos], &cp, mode);
+        ready = MVM_get_ready_status( mode );
         if (ready) {
             maybe_grow_result(&result, &result_alloc, result_pos + ready);
             result[result_pos++] = cp;
@@ -98,7 +124,7 @@ MVMString * MVM_unicode_codepoints_to_nfg_string(MVMThreadContext *tc, const MVM
     MVMint64       input_pos, input_codes, result_pos, result_alloc;
     MVMint32       ready;
     MVMString     *str;
-
+    MVMint32      mode = 0;
     /* Get input array; if it's empty, we're done already. */
     assert_codepoint_array(tc, codes, "Code points to string input must be native array of 32-bit integers");
     input       = (MVMCodepoint *)((MVMArray *)codes)->body.slots.u32 + ((MVMArray *)codes)->body.start;
@@ -116,7 +142,8 @@ MVMString * MVM_unicode_codepoints_to_nfg_string(MVMThreadContext *tc, const MVM
     result_pos = 0;
     while (input_pos < input_codes) {
         MVMGrapheme32 g;
-        ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, input[input_pos], &g);
+        mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, input[input_pos], &g, mode);
+        ready = MVM_get_ready_status(mode);
         if (ready) {
             maybe_grow_result(&result, &result_alloc, result_pos + ready);
             result[result_pos++] = g;
@@ -169,10 +196,12 @@ void MVM_unicode_string_to_codepoints(MVMThreadContext *tc, MVMString *s, MVMNor
     else {
         MVMNormalizer norm;
         MVMint32      ready;
+        MVMint32      mode = 0;
         MVM_unicode_normalizer_init(tc, &norm, form);
         while (MVM_string_ci_has_more(tc, &ci)) {
             MVMCodepoint cp;
-            ready = MVM_unicode_normalizer_process_codepoint(tc, &norm, MVM_string_ci_get_codepoint(tc, &ci), &cp);
+            mode = MVM_unicode_normalizer_process_codepoint(tc, &norm, MVM_string_ci_get_codepoint(tc, &ci), &cp, mode);
+            ready = MVM_get_ready_status(mode);
             if (ready) {
                 maybe_grow_result(&result, &result_alloc, result_pos + ready);
                 result[result_pos++] = cp;
@@ -555,6 +584,8 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
             break;
         // Don't break after Prepend Grapheme_Cluster_Break=Prepend
         case MVM_UNICODE_PROPERTY_GCB_PREPEND:
+            //MVM_panic(MVM_exitcode_NYI, "MVMException CHECKING FULL");
+
             // If it's a control character remember to break
             if (is_control_beyond_latin1(tc, b )) {
                 return 1;
@@ -630,21 +661,27 @@ static void grapheme_composition(MVMThreadContext *tc, MVMNormalizer *n, MVMint3
  * significant codepoint identified by a quick check for the target form). We
  * may find the quick check itself is enough; if not, we have to do real work
  * compute the normalization. */
-MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out) {
+MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode) {
     MVMint64 qc_in, ccc_in;
     int is_prepend = is_grapheme_prepend(tc, in);
+    if (mode == -1 ) {
+        // we saw a prepend character last time
+        fprintf(stderr, "I see %lx Mode: %li Line 704\n", in, mode);
+
+    }
     /* If it's a control character (outside of the range we checked in the
      * fast path) then it's a normalization terminator. */
     if ( ( in > 0xFF && is_control_beyond_latin1(tc, in) ) && ( !is_prepend ) ) {
-        return MVM_unicode_normalizer_process_codepoint_norm_terminator(tc, n, in, out);
+        return MVM_unicode_normalizer_process_codepoint_norm_terminator(tc, n, in, out, mode);
     }
 
     /* Do a quickcheck on the codepoint we got in and get its CCC. */
     qc_in  = passes_quickcheck(tc, n, in);
     ccc_in = ccc(tc, in);
-
-    /* Fast cases when we pass quick check and what we got in has CCC = 0. */
-    if (qc_in && ccc_in == 0) {
+    /* Fast cases when we pass quick check and what we got in has CCC = 0.
+     * and mode=0. Mode is -1 if we saw a prepend character last and +1 if we
+     * saw an extend character last */
+    if ((qc_in && ccc_in == 0) && (mode > 0)) {
         if (MVM_NORMALIZE_COMPOSE(n->form)) {
             /* We're composing. If we have exactly one thing in the buffer and
              * it also passes the quick check, and both it and the thing in the
@@ -672,22 +709,31 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
         }
     }
 
-    /* If we didn't pass quick check... */
-    if (!qc_in) {
-
+    /* If we didn't pass quick check or the previous char was GCB=Extend */
+    if (!qc_in || mode == -1) {
+        fprintf(stderr, "Mode: %li Line 689\n", mode);
         /* If we're composing, then decompose the last thing placed in the
          * buffer, if any. We need to do this since it may have passed
          * quickcheck, but having seen some character that does pass then we
          * must make sure we decomposed the prior passing one too. */
-        if ((MVM_NORMALIZE_COMPOSE(n->form) && n->buffer_end != n->buffer_norm_end) && !is_prepend) {
+        if ((n->buffer_end != n->buffer_norm_end) && !is_prepend && ( MVM_NORMALIZE_COMPOSE(n->form) || mode == -1 )){
             MVMCodepoint decomp = n->buffer[n->buffer_end - 1];
             n->buffer_end--;
             decomp_codepoint_to_buffer(tc, n, decomp);
+            if ( in == 0x227 ) {
+                fprintf(stderr, "I see 0x227 Mode: %li Line 699\n", mode);
+            }
         }
 
         /* Decompose this new character into the buffer. We'll need to see
          * more before we can go any further. */
         decomp_codepoint_to_buffer(tc, n, in);
+        /* if it was a Prepending character make sure to return -1 so we know
+         * the next character needs to be combined onto it */
+        if (is_prepend) {
+            fprintf(stderr, "Saw a prepend so returning -1\n");
+            return -1;
+        }
         return 0;
     }
 
@@ -713,8 +759,9 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
     /* Perform canonical composition and grapheme composition if needed. */
     if (MVM_NORMALIZE_COMPOSE(n->form)) {
         canonical_composition(tc, n, n->buffer_norm_end, n->buffer_end - 1);
-        if (MVM_NORMALIZE_GRAPHEME(n->form))
+        if (MVM_NORMALIZE_GRAPHEME(n->form)) {
             grapheme_composition(tc, n, n->buffer_norm_end, n->buffer_end - 1);
+        }
     }
 
     /* We've now normalized all except the latest, quick-check-passing
@@ -738,7 +785,7 @@ void MVM_unicode_normalizer_push_codepoints(MVMThreadContext *tc, MVMNormalizer 
  * combiner on them. We treat them specially so we don't, during I/O, block on
  * seeing a codepoint after them, which for things like REPLs that need to see
  * input right after a \n makes for problems. */
-MVMint32 MVM_unicode_normalizer_process_codepoint_norm_terminator(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out) {
+MVMint32 MVM_unicode_normalizer_process_codepoint_norm_terminator(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode) {
     /* Add the codepoint into the buffer. */
     add_codepoint_to_buffer(tc, n, in);
 
@@ -758,8 +805,9 @@ void MVM_unicode_normalizer_eof(MVMThreadContext *tc, MVMNormalizer *n) {
     canonical_sort(tc, n, n->buffer_norm_end, n->buffer_end);
     if (MVM_NORMALIZE_COMPOSE(n->form)) {
         canonical_composition(tc, n, n->buffer_norm_end, n->buffer_end);
-        if (MVM_NORMALIZE_GRAPHEME(n->form))
+        if (MVM_NORMALIZE_GRAPHEME(n->form)) {
             grapheme_composition(tc, n, n->buffer_norm_end, n->buffer_end);
+        }
     }
 
     /* We've now normalized all that remains. */

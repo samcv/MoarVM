@@ -237,6 +237,7 @@ MVMString * MVM_string_utf8_c8_decode(MVMThreadContext *tc, const MVMObject *res
     size_t orig_bytes;
     const char *orig_utf8, *last_accept_utf8;
     MVMint32 ready;
+    MVMint32 mode = 0;
 
     /* Need to normalize to NFG as we decode. */
     MVMNormalizer norm;
@@ -250,7 +251,8 @@ MVMString * MVM_string_utf8_c8_decode(MVMThreadContext *tc, const MVMObject *res
         switch(decode_utf8_byte(&state, &codepoint, (MVMuint8)*utf8)) {
         case UTF8_ACCEPT: { /* got a codepoint */
             MVMGrapheme32 g;
-            ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, codepoint, &g);
+            mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, codepoint, &g, mode);
+            ready = MVM_get_ready_status(mode);
             if (ready) {
                 ensure_buffer(&buffer, &bufsize, count + ready);
                 buffer[count++] = g;
@@ -307,7 +309,9 @@ MVMuint32 MVM_string_utf8_c8_decodestream(MVMThreadContext *tc, MVMDecodeStream 
     MVMGrapheme32 *buffer;
     MVMDecodeStreamBytes *cur_bytes;
     MVMDecodeStreamBytes *last_accept_bytes = ds->bytes_head;
-    MVMint32 last_accept_pos, ready;
+    MVMint32 last_accept_pos;
+    MVMint32 ready;
+    MVMint32 mode = 0;
     MVMuint32 reached_stopper;
 
     /* If there's no buffers, we're done. */
@@ -337,7 +341,8 @@ MVMuint32 MVM_string_utf8_c8_decodestream(MVMThreadContext *tc, MVMDecodeStream 
                 MVMGrapheme32 g;
                 last_accept_bytes = cur_bytes;
                 last_accept_pos = pos;
-                ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &(ds->norm), codepoint, &g);
+                mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &(ds->norm), codepoint, &g, mode);
+                ready = MVM_get_ready_status(mode);
                 while (ready--) {
                     if (first)
                         first = 0;

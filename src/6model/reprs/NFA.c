@@ -649,11 +649,13 @@ static MVMint64 * nqp_nfa_run(MVMThreadContext *tc, MVMNFABody *nfa, MVMString *
                         case MVM_NFA_EDGE_CODEPOINT_M_NEG: {
                             MVMNormalizer norm;
                             MVMint32 ready;
+                            MVMint32 mode = 0;
                             MVMGrapheme32 ga = edge_info[i].arg.g;
                             MVMGrapheme32 gb = MVM_string_ord_basechar_at(tc, target, offset);
 
                             MVM_unicode_normalizer_init(tc, &norm, MVM_NORMALIZE_NFD);
-                            ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, ga, &ga);
+                            mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, ga, &ga, mode);
+                            ready = MVM_get_ready_status(mode);
                             MVM_unicode_normalizer_eof(tc, &norm);
                             if (!ready)
                                 ga = MVM_unicode_normalizer_get_grapheme(tc, &norm);
@@ -668,19 +670,22 @@ static MVMint64 * nqp_nfa_run(MVMThreadContext *tc, MVMNFABody *nfa, MVMString *
                         case MVM_NFA_EDGE_CODEPOINT_IM_NEG: {
                             MVMNormalizer norm;
                             MVMint32 ready;
+                            MVMint32 mode = 0;
                             MVMGrapheme32 uc_arg = edge_info[i].arg.uclc.uc;
                             MVMGrapheme32 lc_arg = edge_info[i].arg.uclc.lc;
                             MVMGrapheme32 ord    = MVM_string_ord_basechar_at(tc, target, offset);
 
                             MVM_unicode_normalizer_init(tc, &norm, MVM_NORMALIZE_NFD);
-                            ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, uc_arg, &uc_arg);
+                            mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, uc_arg, &uc_arg, mode);
+                            ready = MVM_get_ready_status(mode);
                             MVM_unicode_normalizer_eof(tc, &norm);
                             if (!ready)
                                 uc_arg = MVM_unicode_normalizer_get_grapheme(tc, &norm);
                             MVM_unicode_normalizer_cleanup(tc, &norm);
 
                             MVM_unicode_normalizer_init(tc, &norm, MVM_NORMALIZE_NFD);
-                            ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, lc_arg, &lc_arg);
+                            mode = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, lc_arg, &lc_arg, mode);
+                            ready = MVM_get_ready_status(mode);
                             MVM_unicode_normalizer_eof(tc, &norm);
                             if (!ready)
                                 lc_arg = MVM_unicode_normalizer_get_grapheme(tc, &norm);

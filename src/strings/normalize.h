@@ -61,25 +61,29 @@ struct MVMNormalizer {
 };
 
 /* Guts-y functions, called by the API level ones below. */
-MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out);
-MVMint32 MVM_unicode_normalizer_process_codepoint_norm_terminator(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out);
+MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode);
+MVMint32 MVM_unicode_normalizer_process_codepoint_norm_terminator(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode);
 
 /* Takes a codepoint to process for normalization as the "in" parameter. If we
  * are able to produce one or more normalized codepoints right off, then we
  * put it into the location pointed to by "out", and return the number of
  * codepoints now available including the one we just passed out. If we can't
  * produce a normalized codepoint right now, we return a 0. */
-MVM_STATIC_INLINE MVMint32 MVM_unicode_normalizer_process_codepoint(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out) {
+MVM_STATIC_INLINE MVMint32 MVM_unicode_normalizer_process_codepoint(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode) {
+    // If the last character was a Prepend we don't need to do checks before going the full path
+    if (mode == -1 ) {
+        return MVM_unicode_normalizer_process_codepoint_full(tc, n, in, out, mode);
+    }
     /* Control characters in the Latin-1 range are normalization terminators -
      * that is, we know we can spit out whatever codepoints we have seen so
      * far in normalized form without having to consider them into the
      * normalization process. The exception is if we're computing NFG, and
      * we got \r, which can form a grapheme in the case of \r\n. */
-    if (in < 0x20 || (in >= 0x7F && in <= 0x9F) || in == 0xAD )
+    if (in < 0x20 || (in >= 0x7F && in <= 0x9F) || in == 0xAD ) {
         if (!(MVM_NORMALIZE_GRAPHEME(n->form) && in == 0x0D)) {
-            return MVM_unicode_normalizer_process_codepoint_norm_terminator(tc, n, in, out);
+            return MVM_unicode_normalizer_process_codepoint_norm_terminator(tc, n, in, out, mode);
         }
-
+    }
     /* Fast-paths apply when the codepoint to consider is too low to have any
      * interesting properties in the target normalization form. */
     if (in < n->first_significant) {
@@ -108,16 +112,20 @@ MVM_STATIC_INLINE MVMint32 MVM_unicode_normalizer_process_codepoint(MVMThreadCon
         }
     }
     /* Fall back to slow path. */
-    return MVM_unicode_normalizer_process_codepoint_full(tc, n, in, out);
+    return MVM_unicode_normalizer_process_codepoint_full(tc, n, in, out, mode);
 }
 
 /* Grapheme version of the above. Note that this exists mostly for API clarity
  * rather than adding any semantics; the normalizer must be configured to
  * produce NFG to get synthetics out. */
-MVM_STATIC_INLINE MVMint32 MVM_unicode_normalizer_process_codepoint_to_grapheme(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMGrapheme32 *out) {
+MVM_STATIC_INLINE MVMint32 MVM_unicode_normalizer_process_codepoint_to_grapheme(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMGrapheme32 *out, MVMint32 mode) {
     assert(sizeof(MVMCodepoint) == sizeof(MVMGrapheme32));
-    return MVM_unicode_normalizer_process_codepoint(tc, n, in, (MVMGrapheme32 *)out);
+    return MVM_unicode_normalizer_process_codepoint(tc, n, in, (MVMGrapheme32 *)out, mode);
 }
+// Gets a bool 'ready status' from MVM_unicode_normalizer_process_X functions
+// the normalizers return a mode to keep state between each character which can have
+// many different return values.
+MVMint32 MVM_get_ready_status(MVMint32 mode );
 
 /* Push a number of codepoints into the "to normalize" buffer. */
 void MVM_unicode_normalizer_push_codepoints(MVMThreadContext *tc, MVMNormalizer *n, const MVMCodepoint *in, MVMint32 num_codepoints);
