@@ -1,13 +1,14 @@
 #include "moar.h"
-#define MVM_UNICODE_PROPERTY_GCB_OTHER          0
-#define MVM_UNICODE_PROPERTY_GCB_PREPEND        1
-#define MVM_UNICODE_PROPERTY_GCB_EXTEND         5
+#define MVM_UNICODE_PROPERTY_GCB_OTHER              0
+#define MVM_UNICODE_PROPERTY_GCB_PREPEND            1
+#define MVM_UNICODE_PROPERTY_GCB_EXTEND             5
 #define MVM_UNICODE_PROPERTY_GCB_REGIONAL_INDICATOR 6
-#define MVM_UNICODE_PROPERTY_GCB_E_MODIFIER     14
-#define MVM_UNICODE_PROPERTY_GCB_E_BASE         13
-#define MVM_UNICODE_PROPERTY_GCB_E_BASE_GAZ     17
-#define MVM_UNICODE_PROPERTY_GCB_ZWJ            15
-#define MVM_UNICODE_PROPERTY_GCB_GLUE_AFTER_ZWJ 16
+#define MVM_UNICODE_PROPERTY_GCB_SPACINGMARK        7
+#define MVM_UNICODE_PROPERTY_GCB_E_MODIFIER        14
+#define MVM_UNICODE_PROPERTY_GCB_E_BASE            13
+#define MVM_UNICODE_PROPERTY_GCB_E_BASE_GAZ        17
+#define MVM_UNICODE_PROPERTY_GCB_ZWJ               15
+#define MVM_UNICODE_PROPERTY_GCB_GLUE_AFTER_ZWJ    16
 
 /* Maps outside-world normalization form codes to our internal set, validating
  * that we got something valid. */
@@ -553,19 +554,15 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
                 return 0;
             break;
         // Don't break after Prepend Grapheme_Cluster_Break=Prepend
-        // for some reason this isn't working
-
         case MVM_UNICODE_PROPERTY_GCB_PREPEND:
             return 0;
-        // Don't break after ZWJ
+        // Don't break after ZWJ for E_Base_GAZ or Glue_After_ZWJ
         case MVM_UNICODE_PROPERTY_GCB_ZWJ:
             if ( GCB_b == MVM_UNICODE_PROPERTY_GCB_E_BASE_GAZ )
                 return 0;
             if ( GCB_b == MVM_UNICODE_PROPERTY_GCB_GLUE_AFTER_ZWJ )
                 return 0;
             break;
-        //case MVM_UNICODE_PROPERTY_GCB_GLUE_AFTER_ZWJ:
-        //    return 0;
 
     }
     switch (GCB_b) {
@@ -581,18 +578,12 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
                     return 0;
                 case MVM_UNICODE_PROPERTY_GCB_E_BASE:
                     return 0;
-                //case MVM_UNICODE_PROPERTY_GCB_EXTEND:
-                //    return 0;
             }
             break;
-
+        /* Don't break before spacing marks. */
+        case MVM_UNICODE_PROPERTY_GCB_SPACINGMARK:
+            return 0;
     }
-
-    /* Don't break before spacing marks. (In the Unicode version at the time
-     * of implementing, there were no Prepend characters, so we don't worry
-     * about that rule for now). */
-    if (is_spacing_mark(tc, b) || is_grapheme_prepend(tc, a) == 1)
-        return 0;
 
     /* Otherwise break. */
     return 1;
