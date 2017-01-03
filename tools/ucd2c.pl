@@ -247,17 +247,8 @@ sub grapheme_cluster_break {
     my ($fname, $pname) = @_;
     enumerated_property("auxiliary/${fname}BreakProperty",
         $pname, {
-            # Should not be set to Other for this one
+            # Should not be set to Other for this one ?
             Other => 0,
-            # Make sure we specify the values of Prepend and Extend
-            # We need these consistent since they are used in MoarVM code
-            #Prepend => 1,
-            #Extend => 2,
-            #E_Base => 3,
-            #E_Base_GAZ => 4,
-            #ZWJ        => 5,
-            #E_Modifier => 6,
-            #Glue_After_Zwj => 7
 
         }, 1, 1);
 }
@@ -716,7 +707,6 @@ sub emit_property_value_lookup {
     my $allocated = shift;
     my $enumtables = "\n\n";
     my $hout = "typedef enum {\n";
-    say Dumper($prop_names);
     my $out = "
 static MVMint32 MVM_unicode_get_property_int(MVMThreadContext *tc, MVMint32 codepoint, MVMint64 property_code) {
     MVMuint32 switch_val = (MVMuint32)property_code;
@@ -829,6 +819,20 @@ static const char* MVM_unicode_get_property_str(MVMThreadContext *tc, MVMint32 c
 
     $hout .= "} MVM_unicode_property_codes;";
 
+    # Grapheme_Cluster_Break Values
+    my $GCB_h;
+    $GCB_h .= "\n\n/* Values of Grapheme_Cluster_Break Property */\n";
+    my %seen;
+    foreach my $key (sort keys % {$enumerated_properties->{'Grapheme_Cluster_Break'}->{'enum'} }  ) {
+        next if $seen{$key};
+        my $value = $enumerated_properties->{'Grapheme_Cluster_Break'}->{'enum'}->{$key};
+        $key = 'MVM_UNICODE_PVALUE_GCB_' . uc $key;
+        $key =~ tr/\./_/;
+        $GCB_h .= "#define $key $value\n";
+        $seen{$key} = 1;
+    }
+    $hout .= $GCB_h;
+
     $db_sections->{MVM_unicode_get_property_int} = $enumtables . $eout . $out;
     $h_sections->{property_code_definitions} = $hout;
 }
@@ -898,7 +902,6 @@ MVMint32 MVM_unicode_is_in_block(MVMThreadContext *tc, MVMString *str, MVMint64 
 
     return in_block;
 }";
-
     $db_sections->{block_lookup} = $out;
     $h_sections->{block_lookup} = $hout;
 }
@@ -1602,7 +1605,6 @@ sub Jamo {
     });
 }
 sub BidiMirroring {
-    #my ( $file, $propname ) = @_;
     my $file = 'BidiMirroring';
     my $propname = 'Bidi_Mirroring_Glyph';
     my $max_size = 0;
