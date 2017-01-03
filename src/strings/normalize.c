@@ -135,7 +135,7 @@ MVMString * MVM_unicode_codepoints_to_nfg_string(MVMThreadContext *tc, const MVM
 MVM_STATIC_INLINE MVMint64 passes_quickcheck(MVMThreadContext *tc, const MVMNormalizer *n, MVMCodepoint cp) {
     return  MVM_unicode_codepoint_get_property_int(tc, cp, n->quick_check_property);
 }
-MVM_STATIC_INLINE int MVM_unicode_GCB_property(MVMThreadContext *tc, const MVMNormalizer *n, MVMCodepoint cp) {
+MVM_STATIC_INLINE int MVM_unicode_GCB_property(MVMThreadContext *tc, MVMCodepoint cp) {
     return MVM_unicode_codepoint_get_property_int(tc, cp, MVM_UNICODE_PROPERTY_GRAPHEME_CLUSTER_BREAK);
 }
 /* Takes an NFG string and populates the array out, which must be a 32-bit
@@ -665,17 +665,11 @@ static void grapheme_composition(MVMThreadContext *tc, MVMNormalizer *n, MVMint3
  * compute the normalization. */
 MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode) {
     MVMint64 qc_in, ccc_in;
-    int is_prepend = is_grapheme_prepend(tc, in);
-    if (mode == -1 ) {
-        // we saw a prepend character last time
-        //fprintf(stderr, "I see %lx Mode: %li Line 704\n", in, mode);
-
-    }
+    int in_GCB = MVM_unicode_GCB_property(tc, in);
     /* If it's a control character (outside of the range we checked in the
      * fast path) then it's a normalization terminator. */
-    if ( ( in > 0xFF && is_control_beyond_latin1(tc, in) ) && ( !is_prepend ) ) {
+    if (in > 0xFF && is_control_beyond_latin1(tc, in) && in_GCB != MVM_UNICODE_PVALUE_GCB_PREPEND)
         return MVM_unicode_normalizer_process_codepoint_norm_terminator(tc, n, in, out, mode);
-    }
 
     /* Do a quickcheck on the codepoint we got in and get its CCC. */
     qc_in  = passes_quickcheck(tc, n, in);
@@ -718,7 +712,7 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
          * buffer, if any. We need to do this since it may have passed
          * quickcheck, but having seen some character that does pass then we
          * must make sure we decomposed the prior passing one too. */
-        if ((n->buffer_end != n->buffer_norm_end) && !is_prepend && ( MVM_NORMALIZE_COMPOSE(n->form) || mode == -1 )){
+        if ((n->buffer_end != n->buffer_norm_end) && in_GCB != MVM_UNICODE_PVALUE_GCB_PREPEND && ( MVM_NORMALIZE_COMPOSE(n->form) || mode == -1 )){
             MVMCodepoint decomp = n->buffer[n->buffer_end - 1];
             n->buffer_end--;
             decomp_codepoint_to_buffer(tc, n, decomp);
@@ -732,7 +726,7 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVM
         decomp_codepoint_to_buffer(tc, n, in);
         /* if it was a Prepending character make sure to return -1 so we know
          * the next character needs to be combined onto it */
-        if (is_prepend) {
+        if (in_GCB == MVM_UNICODE_PVALUE_GCB_PREPEND) {
             //fprintf(stderr, "Saw a prepend so returning -1\n");
             return -1;
         }
