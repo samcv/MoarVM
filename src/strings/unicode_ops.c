@@ -115,7 +115,6 @@ MVMint64 MVM_unicode_codepoint_get_property_int(MVMThreadContext *tc, MVMGraphem
         return 0;
     return (MVMint64)MVM_unicode_get_property_int(tc, codepoint, property_code);
 }
-
 MVMint64 MVM_unicode_codepoint_get_property_bool(MVMThreadContext *tc, MVMGrapheme32 codepoint, MVMint64 property_code) {
     if (property_code == 0)
         return 0;

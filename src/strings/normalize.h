@@ -64,6 +64,21 @@ struct MVMNormalizer {
 MVMint32 MVM_unicode_normalizer_process_codepoint_full(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode);
 MVMint32 MVM_unicode_normalizer_process_codepoint_norm_terminator(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode);
 
+MVM_STATIC_INLINE MVMint32 MVM_get_ready_status(MVMint32 mode) {
+    // Prepend
+    switch (mode) {
+        case -1:
+            return 0;
+        case 1:
+            return 1;
+        case 0:
+            return 0;
+        default:
+            return mode;
+    }
+    // MVM_unicode_normalizer_process_codepoint_norm_terminator returns higher values
+    // So any positive numbers mean its own thing
+}
 /* Takes a codepoint to process for normalization as the "in" parameter. If we
  * are able to produce one or more normalized codepoints right off, then we
  * put it into the location pointed to by "out", and return the number of
@@ -71,7 +86,7 @@ MVMint32 MVM_unicode_normalizer_process_codepoint_norm_terminator(MVMThreadConte
  * produce a normalized codepoint right now, we return a 0. */
 MVM_STATIC_INLINE MVMint32 MVM_unicode_normalizer_process_codepoint(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint in, MVMCodepoint *out, MVMint32 mode) {
     // If the last character was a Prepend we don't need to do checks before going the full path
-    if (mode == -1 ) {
+    if (mode == -1) {
         return MVM_unicode_normalizer_process_codepoint_full(tc, n, in, out, mode);
     }
     /* Control characters in the Latin-1 range are normalization terminators -

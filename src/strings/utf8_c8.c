@@ -267,7 +267,7 @@ static void process_ok_codepoint(MVMThreadContext *tc, DecodeState *state) {
     /* Insert into original codepoints list and hand it to the normalizer. */
     state->orig_codes[state->orig_codes_pos++] = state->cur_codepoint;
     ready = MVM_unicode_normalizer_process_codepoint_to_grapheme(tc,
-            &(state->norm), state->cur_codepoint, &g);
+            &(state->norm), state->cur_codepoint, &g, 0);
 
     /* If the normalizer produced some output... */
     if (ready) {
