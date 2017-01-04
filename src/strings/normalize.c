@@ -315,8 +315,7 @@ static void decomp_codepoint_to_buffer(MVMThreadContext *tc, MVMNormalizer *n, M
 
 /* Checks if the specified character answers "yes" on the appropriate quick check. */
 static MVMint64 passes_quickcheck(MVMThreadContext *tc, const MVMNormalizer *n, MVMCodepoint cp) {
-    const char *pval = MVM_unicode_codepoint_get_property_cstr(tc, cp, n->quick_check_property);
-    return pval && pval[0] == 'Y';
+    return MVM_unicode_codepoint_get_property_int(tc, cp, n->quick_check_property);
 }
 
 /* Gets the canonical combining class for a codepoint. */
