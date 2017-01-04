@@ -346,7 +346,13 @@ static void decomp_codepoint_to_buffer(MVMThreadContext *tc, MVMNormalizer *n, M
         add_codepoint_to_buffer(tc, n, cp);
     }
 }
-
+MVM_STATIC_INLINE MVMint32 fast_atoi( const char * dec_str ) {
+    MVMint32 val = 0;
+    while( *dec_str ) {
+        val = val*10 + (*dec_str++ - '0');
+    }
+    return val;
+}
 /* Gets the canonical combining class for a codepoint. */
 static MVMint64 ccc(MVMThreadContext *tc, MVMCodepoint cp) {
     if (cp < MVM_NORMALIZE_FIRST_NONZERO_CCC) {
@@ -354,7 +360,7 @@ static MVMint64 ccc(MVMThreadContext *tc, MVMCodepoint cp) {
     }
     else {
         const char *ccc_str = MVM_unicode_codepoint_get_property_cstr(tc, cp, MVM_UNICODE_PROPERTY_CANONICAL_COMBINING_CLASS);
-        return !ccc_str || strlen(ccc_str) > 3 ? 0 : atoi(ccc_str);
+        return !ccc_str || strlen(ccc_str) > 3 ? 0 : fast_atoi(ccc_str);
     }
 }
 
