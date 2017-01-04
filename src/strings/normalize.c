@@ -285,7 +285,29 @@ static void decomp_hangul_to_buffer(MVMThreadContext *tc, MVMNormalizer *n, MVMC
             add_codepoint_to_buffer(tc, n, (MVMCodepoint)T);
     }
 }
-
+static const long hextable[] = {
+   [0 ... 255] = -1, // bit aligned access into this table is considerably
+   ['0'] = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, // faster for most modern processors,
+   ['A'] = 10, 11, 12, 13, 14, 15,       // for the space conscious, reduce to
+   ['a'] = 10, 11, 12, 13, 14, 15        // signed char.
+};
+long hexdec2(char ** hexes) {
+    char * hex = *hexes;
+    long ret = 0;
+    int i = 0;
+    long ret2;
+    while (*hex && ret >= 0 ) {
+        //fprintf(stderr, "hextable %li hex %s\n", hextable[*hex], hex);
+        i++;
+        ret2 = (ret << 4) | hextable[*hex++];
+        //fprintf(stderr, "ret2: %li\n", ret2);
+        if ( ret2 < 0 )
+           break;
+      ret = ret2;
+   }
+   *hexes = hex;
+   return ret;
+}
 /* Decompose the codepoint and add it into the buffer. */
 static void decomp_codepoint_to_buffer(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint cp) {
     /* See if we actually need to decompose (can skip if the decomposition
@@ -303,14 +325,15 @@ static void decomp_codepoint_to_buffer(MVMThreadContext *tc, MVMNormalizer *n, M
         /* We need to decompose. Get the decomp spec and go over the things in
          * it; things without a decomp spec are presumably Hangul and need the
          * algorithmic treatment. */
-        char *spec = (char *)MVM_unicode_codepoint_get_property_cstr(tc, cp, MVM_UNICODE_PROPERTY_DECOMP_SPEC);
-        if (spec && spec[0]) {
-            char *end = spec + strlen(spec);
-            while (spec < end) {
+        char *oldspec = (char *)MVM_unicode_codepoint_get_property_cstr(tc, cp, MVM_UNICODE_PROPERTY_DECOMP_SPEC);
+        char **spec = (char **)&oldspec;
+        if (*spec && *spec[0]) {
+            char *end = *spec + strlen(*spec);
+            while (*spec < end) {
                 /* Parse hex character code, and then recurse to do any further
                 * decomposition on it; this recursion terminates when we find a
                 * non-decomposable thing and add it to the buffer. */
-                MVMCodepoint decomp_char = (MVMCodepoint)strtol(spec, &spec, 16);
+                MVMCodepoint decomp_char = (MVMCodepoint)hexdec2(spec);
                 decomp_codepoint_to_buffer(tc, n, decomp_char);
             }
         }
