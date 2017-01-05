@@ -529,6 +529,18 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
     if (a == 0x0D || b == 0x0D)
         return 1;
 
+    /* Emoji Variation selector. If we see this in b, check if a is an Emoji
+     * and if so, don't break here */
+     /*
+    if ( b == 0xFE0F ) {
+        if ( a == 0xFE0F || b == 0xFE0F ) {
+            fprintf(stderr, "Saw emoji selector\n");
+        }
+        if (MVM_unicode_codepoint_get_property_int(tc, a, MVM_UNICODE_PROPERTY_EMOJI)) {
+            fprintf(stderr, "Saying not to break\n");
+            return 0;
+        }
+    } */
     /* Hangul. Avoid property lookup with a couple of quick range checks. */
     if (maybe_hangul(a) && maybe_hangul(b)) {
         const char *hst_a = MVM_unicode_codepoint_get_property_cstr(tc, a,
@@ -564,6 +576,12 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
             if ( GCB_b == MVM_UNICODE_PVALUE_GCB_ZWJ )
                 return 0;
             break;
+        case MVM_UNICODE_PVALUE_GCB_E_MODIFIER:
+            if (MVM_unicode_codepoint_get_property_int(tc, a, MVM_UNICODE_PROPERTY_EMOJI_MODIFIER_BASE)) {
+                fprintf(stderr, "Saying not to break\n");
+                return 0;
+            }
+            break;
 
 
     }
@@ -591,6 +609,7 @@ static MVMint32 should_break(MVMThreadContext *tc, MVMCodepoint a, MVMCodepoint 
         case MVM_UNICODE_PVALUE_GCB_SPACINGMARK:
             return 0;
     }
+
 
     /* Otherwise break. */
     return 1;
