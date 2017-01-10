@@ -102,18 +102,64 @@ MVMint64 MVM_unicode_string_compare
            alen > blen ?  1 :
                           0 ;
 }
+/* Adds a codepoint into the buffer, making sure there's space. */
+static void add_codepoint_to_buffer(MVMThreadContext *tc, MVMNormalizer *n, MVMCodepoint cp) {
+    if (n->buffer_end == n->buffer_size) {
+        if (n->buffer_start != 0) {
+            MVMint32 shuffle = n->buffer_start;
+            MVMint32 to_move = n->buffer_end - n->buffer_start;
+            memmove(n->buffer, n->buffer + n->buffer_start, to_move * sizeof(MVMCodepoint));
+            n->buffer_start = 0;
+            n->buffer_end -= shuffle;
+            n->buffer_norm_end -= shuffle;
+        }
+        else {
+            n->buffer_size *= 2;
+            n->buffer = MVM_realloc(n->buffer, n->buffer_size * sizeof(MVMCodepoint));
+        }
+    }
+    n->buffer[n->buffer_end++] = cp;
+}
 
 /* Looks up a codepoint by name. Lazily constructs a hash. */
 MVMGrapheme32 MVM_unicode_lookup_by_name(MVMThreadContext *tc, MVMString *name) {
     MVMuint64 size;
     char *cname = MVM_string_ascii_encode(tc, name, &size, 0);
     MVMUnicodeNameRegistry *result;
+
     if (!codepoints_by_name) {
         generate_codepoints_by_name(tc);
     }
     HASH_FIND(hash_handle, codepoints_by_name, cname, strlen((const char *)cname), result);
     MVM_free(cname);
+    
     return result ? result->codepoint : -1;
+}
+/* XXX move this so it's included properly */
+MVMString * MVM_string_from_grapheme(MVMThreadContext *tc, MVMCodepoint cp) {
+    MVMString *s;
+    MVMGrapheme32 g;
+    MVMNormalizer norm;
+
+    MVM_unicode_normalizer_init(tc, &norm, MVM_NORMALIZE_NFG);
+    if (!MVM_unicode_normalizer_process_codepoint_to_grapheme(tc, &norm, cp, &g)) {
+        MVM_unicode_normalizer_eof(tc, &norm);
+        g = MVM_unicode_normalizer_get_grapheme(tc, &norm);
+    }
+    MVM_unicode_normalizer_cleanup(tc, &norm);
+
+    s = (MVMString *)REPR(tc->instance->VMString)->allocate(tc, STABLE(tc->instance->VMString));
+    if (g >= -128 && g < 128) {
+        s->body.storage_type       = MVM_STRING_GRAPHEME_8;
+        s->body.storage.blob_8     = MVM_malloc(sizeof(MVMGrapheme8));
+        s->body.storage.blob_8[0]  = g;
+    } else {
+        s->body.storage_type       = MVM_STRING_GRAPHEME_32;
+        s->body.storage.blob_32    = MVM_malloc(sizeof(MVMGrapheme32));
+        s->body.storage.blob_32[0] = g;
+    }
+    s->body.num_graphs         = 1;
+    return s;
 }
 
 MVMString * MVM_unicode_get_name(MVMThreadContext *tc, MVMint64 codepoint) {
@@ -234,6 +280,7 @@ MVMuint32 MVM_unicode_get_case_change(MVMThreadContext *tc, MVMCodepoint codepoi
 
 /* XXX make all the statics members of the global MVM instance instead? */
 static MVMUnicodeNameRegistry *property_codes_by_names_aliases;
+static MVMUnicodeNameRegistry *property_codes_by_seq_names;
 
 static void generate_property_codes_by_names_aliases(MVMThreadContext *tc) {
     MVMuint32 num_names = num_unicode_property_keypairs;
@@ -243,6 +290,18 @@ static void generate_property_codes_by_names_aliases(MVMThreadContext *tc) {
         entry->name = (char *)unicode_property_keypairs[num_names].name;
         entry->codepoint = unicode_property_keypairs[num_names].value;
         HASH_ADD_KEYPTR(hash_handle, property_codes_by_names_aliases,
+            entry->name, strlen(entry->name), entry);
+    }
+}
+static void generate_property_codes_by_seq_names(MVMThreadContext *tc) {
+    // XXX actually generate the number of names;
+    MVMuint32 num_names = num_unicode_seq_keypairs;
+
+    while (num_names--) {
+        MVMUnicodeGraphemeNameRegistry *entry = MVM_malloc(sizeof(MVMUnicodeGraphemeNameRegistry));
+        entry->name = (char *)uni_seq_pairs[num_names].name;
+        entry->structitem = uni_seq_pairs[num_names].value;
+        HASH_ADD_KEYPTR(hash_handle, property_codes_by_seq_names,
             entry->name, strlen(entry->name), entry);
     }
 }
@@ -399,4 +458,44 @@ void MVM_unicode_release(MVMThreadContext *tc)
         unicode_property_values_hashes = NULL;
     }
     uv_mutex_unlock(&property_hash_count_mutex);
+}
+/* Looks up a grapheme by name. Lazily constructs a hash. */
+MVMString * MVM_unicode_string_from_name(MVMThreadContext *tc, MVMString *name) {
+    MVMuint64 size;
+    char *cname = MVM_string_ascii_encode(tc, name, &size, 0);
+    MVMUnicodeGraphemeNameRegistry *result;
+
+    MVMGrapheme32 result_graph;
+    const MVMint32 * uni_seq;
+    int array_size;
+    MVMint32 cp;
+    MVMNormalizer norm;
+    
+    result_graph = MVM_unicode_lookup_by_name(tc, name);
+    /* If it's just a codepoint, return that */
+    if ( result_graph >= 0 )
+        return MVM_string_from_grapheme(tc, result_graph);
+    
+    if (!property_codes_by_seq_names) {
+        generate_property_codes_by_seq_names(tc);
+    }
+    HASH_FIND(hash_handle, property_codes_by_seq_names, cname, strlen((const char *)cname), result);
+    MVM_free(cname);
+    /* If we can't find a result return an empty string */
+    if ( !result )
+        return tc->instance->str_consts.empty;
+    
+    uni_seq = uni_seq_enum[result->structitem];
+    array_size = sizeof(uni_seq)/sizeof(uni_seq[0]);
+
+    MVM_unicode_normalizer_init(tc, &norm, MVM_NORMALIZE_NFG);
+    for ( int i = 0; i < array_size; i++) {
+        cp = uni_seq[i];
+        add_codepoint_to_buffer(tc, &norm, cp);
+    }
+    MVM_unicode_normalizer_eof(tc, &norm);
+    MVM_unicode_normalizer_cleanup(tc, &norm);
+    result_graph = MVM_unicode_normalizer_get_grapheme(tc, &norm);
+
+    return result_graph ? MVM_string_from_grapheme(tc, result_graph) : tc->instance->str_consts.empty;
 }
