@@ -1,5 +1,4 @@
 #include "moar.h"
-
 #define MVM_DEBUG_STRANDS 0
 
 #if MVM_DEBUG_STRANDS
@@ -217,6 +216,47 @@ MVMint64 MVM_string_index(MVMThreadContext *tc, MVMString *haystack, MVMString *
     if (ngraphs > hgraphs || ngraphs < 1)
         return -1;
 
+    if (ngraphs == 2) {
+        MVMint64 h_pos = ngraphs - 1;
+        MVMGrapheme32 cp_0 = MVM_string_get_grapheme_at_nocheck(tc, needle, 0);
+        MVMGrapheme32 cp_1 = MVM_string_get_grapheme_at_nocheck(tc, needle, 1);
+
+        while (h_pos < hgraphs) {
+            //fprintf(stderr, "loopy h_pos %li hgraphs %li\n", h_pos, hgraphs);
+            /* Compare index 1 in haystack to index one in needle
+            (first loop)
+            h[a]y|s|t|a|c|k
+            c[k]
+            (second loop)
+            h|a|y[s]t|a|c|k
+                c[k]              */
+            if ( MVM_string_get_grapheme_at_nocheck(tc, haystack, h_pos) == cp_1 ) {
+                //fprintf(stderr, "SUCC 1 h_pos %li hgraphs %li\n", h_pos, hgraphs);
+                if ( MVM_string_get_grapheme_at_nocheck(tc, haystack, h_pos - 1) == cp_0 ) {
+                    fprintf(stderr, "exiting loop succ 1.1 h_pos %li hgraphs %li\n", h_pos, hgraphs);
+                    return h_pos - 1;
+                }
+            }
+            /* Otherwise compare index 1 in haystack to index zero in needle
+            (first loop)
+            h[a]y|s|t|a|c|k
+             [c]k                                                             */
+            else if ( MVM_string_get_grapheme_at_nocheck(tc, haystack, h_pos) == cp_0
+                /* Make sure we don't go past the end */
+                && h_pos + 1 < hgraphs  ) {
+                //fprintf(stderr, "SUCC 2 h_pos %li hgraphs %li\n",  h_pos, hgraphs);
+                /* If they are equal, check if the last ngraphs characters are a match */
+                if ( MVM_string_get_grapheme_at_nocheck(tc, haystack, h_pos + 1) == cp_1 ) {
+                    //fprintf(stderr, "exiting loop succ 2 h_pos %li hgraphs %li\n", h_pos, hgraphs);
+                    return h_pos;
+                }
+            }
+            /* If they weren't equal skip down the string another ngraph characters */
+            h_pos += ngraphs;
+        }
+        //fprintf(stderr, "exiting loop failure h_pos %li hgraphs %li\n", h_pos, hgraphs);
+        return -1;
+    }
     /* brute force for now. horrible, yes. halp. */
     while (index <= hgraphs - ngraphs) {
         if (MVM_string_substrings_equal_nocheck(tc, needle, 0, ngraphs, haystack, index)) {
