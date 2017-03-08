@@ -575,12 +575,30 @@ MVMint64 MVM_string_equal_at(MVMThreadContext *tc, MVMString *a, MVMString *b, M
 MVMint64 MVM_string_equal_at_ignore_case(MVMThreadContext *tc, MVMString *a, MVMString *b, MVMint64 offset) {
     MVMString *fca;
     MVMString *fcb;
+    MVMint64 len_a = MVM_string_graphs(tc, a);
+    MVMint64 len_b = MVM_string_graphs(tc, b);
+    MVMint64 counter, change_a, change_b;
+
     MVMROOT(tc, b, {
         fca = MVM_string_fc(tc, a);
         MVMROOT(tc, fca, {
             fcb = MVM_string_fc(tc, b);
         });
     });
+    change_a = MVM_string_graphs(tc, fca) - len_a;
+    change_b = MVM_string_graphs(tc, fcb) - len_b;
+
+    if (change_a == 0 && change_b == 0)
+        return MVM_string_equal_at(tc, fca, fcb, offset);
+
+    if (change_a > 0) {
+        counter = 0;
+        while (MVM_string_substrings_equal_nocheck(tc, a, counter, 1, fca, 0)) {
+            counter++;
+        }
+        if (offset > counter)
+            offset += change_a;
+    }
     return MVM_string_equal_at(tc, fca, fcb, offset);
 }
 
