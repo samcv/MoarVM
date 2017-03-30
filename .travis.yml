@@ -16,22 +16,22 @@ before_script:
 
 script:
     - "perl Configure.pl --prefix=/tmp/moar $MVM_OPTIONS --debug --optimize --cc=\"$CC\"; make install; cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar; make; make test"
-    - if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o MoarVM.gcov coverage.profraw ; fi
+    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o MoarVM.gcov coverage.profraw ; fi"
 
 branches:
    only:
      - master
      - /smoke-me/
 
-notifications:
-  irc:
-    channels:
-    - "irc.freenode.net#moarvm"
-    on_success: change
-    on_failure: always
-    template:
-      - "MoarVM build %{result}. %{author} '%{commit_message}'"
-      - "%{build_url} %{compare_url}"
+#notifications:
+ # irc:
+#    channels:
+#    - "irc.freenode.net#moarvm"
+#    on_success: change
+#    on_failure: always
+#    template:
+#      - "MoarVM build %{result}. %{author} '%{commit_message}'"
+#      - "%{build_url} %{compare_url}"
 
 env:
   matrix:
@@ -44,10 +44,10 @@ env:
 #    - MVM_OPTIONS="--has-libffi --no-jit"  CC="clang"
 #    - MVM_OPTIONS="--has-libffi"           CC="clang"
 # Coverage build
-    - MVM_OPTIONS="--compiler=clang --coverage --optimize=0 --debug=3" COVERAGE=1 LLVM_PROFILE_FILE="coverage.profraw"
+    - MVM_OPTIONS="--coverage --optimize=0 --debug=3" CC="clang" COVERAGE=1 LLVM_PROFILE_FILE="coverage.profraw"
 
 after_success:
-  - if [ $COVERAGE == 1 ] ; then bash <(curl -s https://codecov.io/bash) ; fi
+  - "if [ $COVERAGE == 1 ] ; then bash <(curl -s https://codecov.io/bash) ; fi"
 
 matrix:
   exclude:
