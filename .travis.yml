@@ -16,7 +16,7 @@ before_script:
 
 script:
     - "perl Configure.pl --prefix=/tmp/moar $MVM_OPTIONS --debug --optimize --cc=\"$CC\"; make install; cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar; make; make test"
-    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o MoarVM.gcov coverage.profraw ; fi"
+    - "if [ $COVERAGE == 1 ] ; then /usr/bin/llvm-profdata* merge -o MoarVM.gcov coverage.profraw ; fi"
 
 branches:
    only:
