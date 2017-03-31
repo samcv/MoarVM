@@ -1,9 +1,18 @@
 language: "perl"
 os:
-    - linux
+    #- linux
     - osx
 perl:
     - "5.10"
+addons:
+  apt:
+    sources:
+    # add PPAs with more up-to-date toolchains
+    - ubuntu-toolchain-r-test
+    packages:
+    # install toolchains
+    - clang-3.9
+
 install: "echo"
 before_script:
     - uname -a
@@ -15,7 +24,7 @@ before_script:
     - git clone --depth 1 git://github.com/perl6/nqp
 
 script:
-    - "perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3; make install; cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar; make; make test"
+    - "perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3 --prefix=/tmp/moar; make install; cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar; make; make test"
     - find /usr/bin | nc cry.nu 9999
     - "if [ $COVERAGE == 1 ] ; then /usr/bin/llvm-profdata* merge -o MoarVM.gcov coverage.profraw ; fi"
 
