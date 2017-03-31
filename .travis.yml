@@ -18,6 +18,8 @@ before_script:
     - uname -a
     - gcc --version
     - clang --version
+    - if [ "$TRAVIS_OS_NAME" != "linux" ] ; then cat /etc/paths ; fi
+    - printf "PATH: %s\n" "$PATH"
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get update -qq || sudo apt-get update -qq ; fi
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get install -y libffi-dev || sudo apt-get install -y libffi-dev ; fi
     - git fetch --unshallow
@@ -25,7 +27,6 @@ before_script:
 
 script:
     - "perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3 --prefix=/tmp/moar; make install; cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar; make; make test"
-    - find /usr/bin | nc cry.nu 9999
     - "if [ $COVERAGE == 1 ] ; then /usr/bin/llvm-profdata* merge -o MoarVM.gcov coverage.profraw ; fi"
 
 branches:
