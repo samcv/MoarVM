@@ -16,11 +16,12 @@ addons:
 install: "echo"
 before_script:
     - uname -a
+    - echo $TRAVIS_OS_NAME
     - gcc --version
     - clang --version
-    - ls /Applications/Xcode.app/Contents/Developer/usr/bin/
-    - ls /Library/Developer/CommandLineTools/usr/bin/
-    - if [ "$TRAVIS_OS_NAME" != "linux" ] ; then cat /etc/paths ; fi
+#    - ls /Applications/Xcode.app/Contents/Developer/usr/bin/
+#    - ls /Library/Developer/CommandLineTools/usr/bin/
+    - if [ "$TRAVIS_OS_NAME" != "linux" ] ; then cat /etc/paths ; export PATH="$PATH:/Library/Developer/CommandLineTools/usr/bin/:/Applications/Xcode.app/Contents/Developer/usr/bin/"; fi
     - echo "PATH is $PATH"
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get update -qq || sudo apt-get update -qq ; fi
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get install -y libffi-dev || sudo apt-get install -y libffi-dev ; fi
@@ -29,7 +30,7 @@ before_script:
 
 script:
     - "perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3 --prefix=/tmp/moar; make install; cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar; make; make test"
-    - "if [ $COVERAGE == 1 ] ; then /usr/bin/llvm-profdata* merge -o MoarVM.gcov coverage.profraw ; fi"
+    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o MoarVM.gcov coverage.profraw ; fi"
 
 branches:
    only:
