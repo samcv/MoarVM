@@ -31,8 +31,8 @@ script:
 
 branches:
    only:
-     - master
-     - /smoke-me/
+     - /.*/
+    # - /smoke-me/
 
 #notifications:
  # irc:
