@@ -19,6 +19,7 @@ before_script:
     - gcc --version
     - clang --version
     - ls /Applications/Xcode.app/Contents/Developer/usr/bin/
+    - ls ls /Library/Developer/CommandLineTools/usr/bin/
     - if [ "$TRAVIS_OS_NAME" != "linux" ] ; then cat /etc/paths ; fi
     - echo "PATH is $PATH"
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get update -qq || sudo apt-get update -qq ; fi
