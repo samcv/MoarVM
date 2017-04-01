@@ -37,7 +37,7 @@ script:
     - "if [ $COVERAGE == 1 ] ; then rm -v $LLVM_PROFILE_FILE; fi"
     - "make test"
     - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; fi"
-    - "if [ $COVERAGE == 1 ] ; then llvm-cov report -instr-profile MoarVM.profdata ./libmoar.so; fi"
+    - "if [ $COVERAGE == 1 ] ; then llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.so; fi"
 
 branches:
    only:
