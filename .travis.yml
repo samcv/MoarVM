@@ -29,6 +29,7 @@ before_script:
     - git clone --depth 1 git://github.com/perl6/nqp
 
 script:
+    - export ORIGIN_DIR=$(pwd)
     - "perl Configure.pl --prefix=/tmp/moar $MVM_OPTIONS --debug --optimize --cc=\"$CC\";"
     #- perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3 --prefix=/tmp/moar;
     - make install
@@ -37,10 +38,12 @@ script:
     - "if [ $COVERAGE == 1 ] ; then rm -v $LLVM_PROFILE_FILE; fi"
     - "make test"
     - ls -l
-    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; fi"
+    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; export LLVM_PROCESSED_DATA_FILE=\"$ORIGIN_DIR/$LLVM_PROCESSED_DATA_FILE\"; fi"
     - ls -l
     - pwd
-    - "if [ $COVERAGE == 1 ] ; then llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.so; fi"
+    - "if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.so; fi"
+    - pwd
+    - ls -l
 
 branches:
    only:
@@ -73,7 +76,7 @@ env:
 after_success:
   - pwd
   - find .
-  - if [ $COVERAGE == 1 ] ; then llvm-cov report -instr-profile "$LLVM_PROCESSED_DATA_FILE" ./libmoar.so; bash <(curl -s https://codecov.io/bash) -f "$LLVM_PROCESSED_DATA_FILE"  ; fi
+  - if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile "$LLVM_PROCESSED_DATA_FILE" ./libmoar.so; bash <(curl -s https://codecov.io/bash) -f "$LLVM_PROCESSED_DATA_FILE"  ; fi
   - ls -l
 
 matrix:
