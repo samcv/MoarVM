@@ -35,7 +35,7 @@ script:
     - cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar
     - "make"
     - "make test"
-    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o MoarVM.gcov coverage.profraw ; cd .. fi"
+    #- "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o MoarVM.gcov coverage.profraw ; cd .. fi"
 
 branches:
    only:
@@ -66,8 +66,9 @@ env:
     - MVM_OPTIONS="--coverage --optimize=0 --debug=3" CC="clang" COVERAGE=1 LLVM_PROFILE_FILE="coverage.profraw"
 
 after_success:
-  - "if [ $COVERAGE == 1 ] ; then bash <(curl -s https://codecov.io/bash) -f MoarVM.gcov ; fi"
   - pwd
+  - find .
+  - "if [ $COVERAGE == 1 ] ; then bash <(curl -s https://codecov.io/bash) -f MoarVM.gcov ; fi"
   - ls -l
 
 matrix:
