@@ -34,8 +34,9 @@ script:
     - make install
     - cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar
     - "make"
+    - "if [ $COVERAGE == 1 ] ; then rm -v $LLVM_PROFILE_FILE; fi"
     - "make test"
-    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o MoarVM.gcov coverage.profraw; rm coverage.profraw; fi"
+    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; llvm-cov report -instr-profile MoarVM.profdata fi"
 
 branches:
    only:
@@ -63,12 +64,12 @@ env:
 #    - MVM_OPTIONS="--has-libffi --no-jit"  CC="clang"
 #    - MVM_OPTIONS="--has-libffi"           CC="clang"
 # Coverage build
-    - MVM_OPTIONS="--coverage --optimize=0 --debug=3" CC="clang" COVERAGE=1 LLVM_PROFILE_FILE="coverage.profraw"
+    - MVM_OPTIONS="--coverage --optimize=0 --debug=3" CC="clang" COVERAGE=1 LLVM_PROFILE_FILE="coverage.profraw" LLVM_PROCESSED_DATA_FILE="MoarVM.gcov"
 
 after_success:
   - pwd
   - find .
-  - "if [ $COVERAGE == 1 ] ; then bash <(curl -s https://codecov.io/bash) -f MoarVM.gcov ; fi"
+  - if [ $COVERAGE == 1 ] ; then llvm-cov report -instr-profile "$LLVM_PROCESSED_DATA_FILE" ./libmoar.so; bash <(curl -s https://codecov.io/bash) -f "$LLVM_PROCESSED_DATA_FILE"  ; fi
   - ls -l
 
 matrix:
