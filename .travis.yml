@@ -42,7 +42,7 @@ script:
     - echo $LLVM_PROCESSED_DATA_FILE
     - ls -l
     - pwd
-    - "if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.so; fi"
+    - "if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.*; fi"
     - pwd
     - ls -l
 
