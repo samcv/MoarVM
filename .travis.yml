@@ -29,7 +29,8 @@ before_script:
     - git clone --depth 1 git://github.com/perl6/nqp
 
 script:
-    - perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3 --prefix=/tmp/moar;
+    - "perl Configure.pl --prefix=/tmp/moar $MVM_OPTIONS --debug --optimize --cc=\"$CC\";"
+    #- perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3 --prefix=/tmp/moar;
     - make install
     - cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar
     - "make"
