@@ -68,7 +68,7 @@ env:
 after_success:
   - pwd
   - find .
-  - "if [ $COVERAGE == 1 ] ; then bash <(curl -s https://codecov.io/bash) -f MoarVM.gcov ; fi"
+  - "if [ $COVERAGE == 1 ] ; then bash <(curl -s https://codecov.io/bash) -f coverage.profraw ; fi"
   - ls -l
 
 matrix:
