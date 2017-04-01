@@ -38,7 +38,8 @@ script:
     - "if [ $COVERAGE == 1 ] ; then rm -v $LLVM_PROFILE_FILE; fi"
     - "make test"
     - ls -l
-    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; export LLVM_PROCESSED_DATA_FILE=\"$ORIGIN_DIR/$LLVM_PROCESSED_DATA_FILE\"; fi"
+    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; export LLVM_PROCESSED_DATA_FILE=$(readlink -f $LLVM_PROCESSED_DATA_FILE); fi"
+    - echo $LLVM_PROCESSED_DATA_FILE
     - ls -l
     - pwd
     - "if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.so; fi"
