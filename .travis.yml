@@ -15,6 +15,7 @@ addons:
 
 install: "echo"
 before_script:
+    - begin before_script
     - uname -a
     - echo $TRAVIS_OS_NAME
     - gcc --version
@@ -27,8 +28,10 @@ before_script:
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get install -y libffi-dev || sudo apt-get install -y libffi-dev ; fi
     - git fetch --unshallow
     - git clone --depth 1 git://github.com/perl6/nqp
+    - echo end before_script
 
 script:
+    - echo begin script
     - export ORIGIN_DIR=$(pwd)
     - "perl Configure.pl --prefix=/tmp/moar $MVM_OPTIONS --debug --optimize --cc=\"$CC\";"
     #- perl Configure.pl --compiler=clang --coverage --optimize=0 --debug=3 --prefix=/tmp/moar;
@@ -37,14 +40,7 @@ script:
     - "make"
     - "if [ $COVERAGE == 1 ] ; then rm -v $LLVM_PROFILE_FILE; fi"
     - "make test"
-    - ls -l
-    - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; export LLVM_PROCESSED_DATA_FILE=$(realpath $LLVM_PROCESSED_DATA_FILE); fi"
-    - echo $LLVM_PROCESSED_DATA_FILE
-    - ls -l
-    - pwd
-    - "if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.*; fi"
-    - pwd
-    - ls -l
+    - echo end script
 
 branches:
    only:
@@ -72,13 +68,18 @@ env:
 #    - MVM_OPTIONS="--has-libffi --no-jit"  CC="clang"
 #    - MVM_OPTIONS="--has-libffi"           CC="clang"
 # Coverage build
-    - MVM_OPTIONS="--coverage --optimize=0 --debug=3" CC="clang" COVERAGE=1 LLVM_PROFILE_FILE="coverage.profraw" LLVM_PROCESSED_DATA_FILE="MoarVM.gcov"
+    - MVM_OPTIONS="--coverage --optimize=0 --debug=3" CC="clang" COVERAGE=1 LLVM_PROFILE_FILE="coverage.profraw" LLVM_PROCESSED_DATA_FILE="MoarVM.profdata"
 
 after_success:
+  - echo begin after_success
+  - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; export LLVM_PROCESSED_DATA_FILE=$(realpath $LLVM_PROCESSED_DATA_FILE); fi"
+  - echo $LLVM_PROCESSED_DATA_FILE
+  - "if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.*; fi"
   - pwd
   - find .
   - if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile "$LLVM_PROCESSED_DATA_FILE" ./libmoar.so; bash <(curl -s https://codecov.io/bash) -f "$LLVM_PROCESSED_DATA_FILE"  ; fi
   - ls -l
+  - echo end after_success
 
 matrix:
   exclude:
