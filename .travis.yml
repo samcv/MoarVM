@@ -15,7 +15,7 @@ addons:
 
 install: "echo"
 before_script:
-    - begin before_script
+    - echo begin before_script
     - uname -a
     - echo $TRAVIS_OS_NAME
     - gcc --version
@@ -75,9 +75,11 @@ after_success:
   - "if [ $COVERAGE == 1 ] ; then llvm-profdata merge -o $LLVM_PROCESSED_DATA_FILE $LLVM_PROFILE_FILE; export LLVM_PROCESSED_DATA_FILE=$(realpath $LLVM_PROCESSED_DATA_FILE); fi"
   - echo $LLVM_PROCESSED_DATA_FILE
   - "if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.*; fi"
+  # Don't include unicode.c because it contains the Unicode Database for now
+  - "if [ $COVERAGE == 1 ] ; then llvm-cov show -instr-profile $LLVM_PROCESSED_DATA_FILE ./libmoar.* $(find src -name '*.c' | grep -v unicode.c)"
   - pwd
   - find .
-  - if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile "$LLVM_PROCESSED_DATA_FILE" ./libmoar.so; bash <(curl -s https://codecov.io/bash) -f "$LLVM_PROCESSED_DATA_FILE"  ; fi
+  #- if [ $COVERAGE == 1 ] ; then cd $ORIGIN_DIR; llvm-cov report -instr-profile "$LLVM_PROCESSED_DATA_FILE" ./libmoar.so; bash <(curl -s https://codecov.io/bash) -f "$LLVM_PROCESSED_DATA_FILE"  ; fi
   - ls -l
   - echo end after_success
 
