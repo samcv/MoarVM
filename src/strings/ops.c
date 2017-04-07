@@ -197,7 +197,29 @@ MVMGrapheme32 MVM_string_get_grapheme_at_nocheck(MVMThreadContext *tc, MVMString
         MVM_exception_throw_adhoc(tc, "String corruption detected: bad storage type");
     }
 }
-
+/* haystacklen and needlelen are in units of block_size */
+MVM_STATIC_INLINE MVMint64 MVM_mempos_at_boundary(MVMThreadContext *tc, const void *haystack, size_t haystacklen,
+    const void *needle, size_t needlelen, size_t block_size) {
+        void *mm_addr = memmem(
+            haystack, /* start position */
+            haystacklen * block_size, /* length of haystack from start position to end */
+            needle, /* needle start */
+            needlelen * block_size /* needle length */
+        );
+        if (block_size == sizeof(MVMGrapheme8))
+            fprintf(stderr, "newfunc %p\n", mm_addr);
+        if (mm_addr == NULL)
+            return -1;
+        /* If we aren't on a 32 bit boundary then freak out!!! */
+        else if (
+            ( (intptr_t)mm_addr - (intptr_t)haystack) % block_size
+        ) {
+            fprintf(stderr, "Overlapping chars, oh no… this is bad\n");
+            MVM_exception_throw_adhoc(tc, "Overlapping chars, oh no… this is bad\n");
+        }
+        else
+            return ((char *)mm_addr - (char *) haystack)/block_size;
+}
 /* Returns the location of one string in another or -1  */
 MVMint64 MVM_string_index(MVMThreadContext *tc, MVMString *haystack, MVMString *needle, MVMint64 start) {
     size_t index           = (size_t)start;
@@ -238,8 +260,20 @@ MVMint64 MVM_string_index(MVMThreadContext *tc, MVMString *haystack, MVMString *
                     fprintf(stderr, "Overlapping chars, oh no… this is bad\n");
                     MVM_exception_throw_adhoc(tc, "Overlapping chars, oh no… this is bad\n");
                 }
-                else
-                    return (MVMGrapheme32*)mm_return_32 - haystack->body.storage.blob_32;
+                else {
+                    MVMint64 myresult, mynewresult;
+                    myresult = (MVMGrapheme32*)mm_return_32 - haystack->body.storage.blob_32;
+                    mynewresult = MVM_mempos_at_boundary(tc,
+                        haystack->body.storage.blob_32 + start,
+                        (hgraphs - start),
+                        needle->body.storage.blob_32,
+                        ngraphs,
+                        sizeof(MVMGrapheme32)
+                    );
+                    if (mynewresult != myresult) {
+                        fprintf(stderr, "not equal 32\n");
+                    }
+                    return myresult;
             }
             break;
         case MVM_STRING_GRAPHEME_8:
@@ -249,12 +283,27 @@ MVMint64 MVM_string_index(MVMThreadContext *tc, MVMString *haystack, MVMString *
                     (hgraphs - start) * sizeof(MVMGrapheme8), /* length of haystack from start position to end */
                     needle->body.storage.blob_8, /* needle start */
                     ngraphs * sizeof(MVMGrapheme8)); /* needle length */
+                fprintf(stderr, "rightfunc %p\n", mm_return_8);
                 if (mm_return_8 == NULL)
                     return -1;
-                else
-                    return (MVMGrapheme8*)mm_return_8 -  haystack->body.storage.blob_8;
+                else {
+                    MVMint64 myresult, mynewresult;
+                    myresult = (MVMGrapheme8*)mm_return_8 -  haystack->body.storage.blob_8;
+                    mynewresult = MVM_mempos_at_boundary(tc,
+                        haystack->body.storage.blob_8 + start,
+                        (hgraphs - start),
+                        needle->body.storage.blob_8,
+                        ngraphs,
+                        sizeof(MVMGrapheme8)
+                    );
+                    if (mynewresult != myresult) {
+                        fprintf(stderr, "real: %i new: %i not equal 8\n", myresult, mynewresult);
+                    }
+                    return myresult;
+                }
             }
             break;
+        }
     }
 
     /* brute force for now. horrible, yes. halp. */
