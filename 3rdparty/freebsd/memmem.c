@@ -158,7 +158,7 @@ static char *twoway_memmem(const unsigned char *h, const unsigned char *z, const
 	}
 }
 
-void *memmem(const void *h0, size_t k, const void *n0, size_t l)
+void *FBSD_memmem(const void *h0, size_t k, const void *n0, size_t l)
 {
 	const unsigned char *h = h0, *n = n0;
 
