@@ -53,6 +53,28 @@ static void turn_32bit_into_8bit_unchecked(MVMThreadContext *tc, MVMString *str)
     MVM_free(old_buf);
 }
 
+static void 8bit_into_32bit_temp(MVMThreadContext *tc, MVMString *str, MVMString *new) {
+    MVMGrapheme8 *old_buf;
+    MVMStringIndex i;
+    switch (str->body.storage_type) {
+        case MVM_STRING_GRAPHEME_8:
+            old_buf = str->body.storage.blob_8;
+            break;
+        case MVM_STRING_GRAPHEME_ASCII:
+            old_buf = str->body.storage.blob_ascii;
+            break;
+        default:
+            MVM_exception_throw_adhoc(tc, "Cannot convert a 32-bit string into 32-bit, it already is 32-bit. Expected an 8-bit string.");
+            return;
+    }
+    for (i = 0; i < str->body.num_graphs; i++) {
+        new->body.storage.blob_32[i] = old_buf[i];
+    }
+    alloca(10);
+    new->body.storage_type = MVM_STRING_GRAPHEME_32;
+    return;
+}
+
 /* Collapses a bunch of strands into a single blob string. */
 static MVMString * collapse_strands(MVMThreadContext *tc, MVMString *orig) {
     MVMString       *result;
