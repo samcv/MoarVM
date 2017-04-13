@@ -14,33 +14,39 @@ before_script:
     - git fetch --unshallow
     - git clone --depth 1 git://github.com/perl6/nqp
 
-script: "perl Configure.pl --prefix=/tmp/moar $MVM_OPTIONS --debug --optimize --cc=\"$CC\"; make install; cd nqp; perl Configure.pl --prefix=/tmp/moar --backends=moar; make; make test"
+script:
+    - export MOAR_PREFIX="/tmp/moar"; export MOAR_FOLDER="$TRAVIS_BUILD_DIR"
+    - export NQP_FOLDER="$(readlink -f ./nqp)"
+    - "perl Configure.pl --prefix=$MOAR_PREFIX $MVM_OPTIONS --debug --optimize --cc=\"$CC\"; make install; cd nqp; perl Configure.pl --prefix=$MOAR_PREFIX --backends=moar; make; make test"
+    - if [ "$COVERAGE" ]; then git clone --depth 1 https://github.com/samcv/MoarVM-cover.git && cp -v MoarVM-cover/html-cover.sh . && cp -v MoarVM-cover/nqp-profile ./nqp
 
 branches:
    only:
      - master
+     - coverage
      - /smoke-me/
 
 notifications:
   irc:
     channels:
     - "irc.freenode.net#moarvm"
-    on_success: change
-    on_failure: always
+  #  on_success: change
+  #  on_failure: always
     template:
       - "MoarVM build %{result}. %{author} '%{commit_message}'"
       - "%{build_url} %{compare_url}"
 
 env:
   matrix:
-    - MVM_OPTIONS="--no-jit"  CC="gcc"
-    - MVM_OPTIONS=""          CC="gcc"
-    - MVM_OPTIONS="--no-jit"  CC="clang"
-    - MVM_OPTIONS=""          CC="clang"
-    - MVM_OPTIONS="--has-libffi --no-jit"  CC="gcc"
-    - MVM_OPTIONS="--has-libffi"           CC="gcc"
-    - MVM_OPTIONS="--has-libffi --no-jit"  CC="clang"
-    - MVM_OPTIONS="--has-libffi"           CC="clang"
+#    - MVM_OPTIONS="--no-jit"  CC="gcc"
+#    - MVM_OPTIONS=""          CC="gcc"
+#    - MVM_OPTIONS="--no-jit"  CC="clang"
+#    - MVM_OPTIONS=""          CC="clang"
+#    - MVM_OPTIONS="--has-libffi --no-jit"  CC="gcc"
+#    - MVM_OPTIONS="--has-libffi"           CC="gcc"
+#    - MVM_OPTIONS="--has-libffi --no-jit"  CC="clang"
+#    - MVM_OPTIONS="--has-libffi"           CC="clang"
+    - MVM_OPTIONS="--compiler=clang --coverage --optimize=0 --debug=3"
 
 matrix:
   exclude:
