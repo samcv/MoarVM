@@ -11,8 +11,8 @@ addons:
       - sourceline: 'ppa:ubuntu-toolchain-r/test'
       - sourceline: 'deb http://apt.llvm.org/precise/ llvm-toolchain-precise main'
     packages:
-      - llvm
-      - clang
+      - clang-5.0
+      - llvm-5.0
 
 before_script:
     - uname -a
