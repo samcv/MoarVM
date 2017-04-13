@@ -5,6 +5,15 @@ os:
 perl:
     - "5.10"
 install: "echo"
+addons:
+  apt:
+    sources:
+      - sourceline: 'ppa:ubuntu-toolchain-r/test'
+      - sourceline: 'deb http://apt.llvm.org/precise/ llvm-toolchain-precise main'
+    packages:
+      - llvm
+      - clang
+
 before_script:
     - uname -a
     - gcc --version
