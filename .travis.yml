@@ -9,6 +9,8 @@ before_script:
     - uname -a
     - gcc --version
     - clang --version
+    - MVM_debug="--debug"; MVM_optimize="--optimize"
+    - if [ "$COVERAGE" ]; then MVM_debug="--debug=3"; MVM_optimize="--optimize=0"; fi
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get update -qq || sudo apt-get update -qq ; fi
     - if [ "$TRAVIS_OS_NAME" == "linux" ] ; then sudo apt-get install -y libffi-dev || sudo apt-get install -y libffi-dev ; fi
     - git fetch --unshallow
@@ -17,7 +19,7 @@ before_script:
 script:
     - export MOAR_PREFIX="/tmp/moar"; export MOAR_FOLDER="$TRAVIS_BUILD_DIR"
     - export NQP_FOLDER="$(readlink -f ./nqp)"
-    - "perl Configure.pl --prefix=$MOAR_PREFIX $MVM_OPTIONS --debug --optimize --cc=\"$CC\"; make install; cd nqp; perl Configure.pl --prefix=$MOAR_PREFIX --backends=moar; make; make test"
+    - "perl Configure.pl --prefix=$MOAR_PREFIX $MVM_OPTIONS $MVM_debug $MVM_optimize --cc=\"$CC\"; make install; cd nqp; perl Configure.pl --prefix=$MOAR_PREFIX --backends=moar; make; make test"
     - if [ "$COVERAGE" ]; then git clone --depth 1 https://github.com/samcv/MoarVM-cover.git && cp -v MoarVM-cover/html-cover.sh . && cp -v MoarVM-cover/nqp-profile ./nqp
 
 branches:
