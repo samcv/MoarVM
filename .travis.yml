@@ -20,6 +20,9 @@ before_script:
     - uname -a
     - gcc --version
     - clang --version
+    - find_latest_version () { ls /usr/bin | grep -Ee "^$1(\-[0-9.]+)?$" | sort -r | head -n 1; }
+    - find_latest_version llvm-profdata
+    - find_latest_version llvm-cov
     # Find the latest clang that is on the system
     - CLANG_LATEST=$(ls /usr/bin | grep -Ee '^clang(\-[0-9.]+)?$' | sort -r | head -n 1)
     - if [ ! "$CLANG_LATEST" = 'clang' ]; then eval "$CLANG_LATEST --version"; fi
