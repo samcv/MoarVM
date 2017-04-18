@@ -27,6 +27,7 @@ enum {
     FLAG_HELP,
     FLAG_TRACING,
     FLAG_VERSION,
+    FLAG_CHDIR,
 
     OPT_EXECNAME,
     OPT_LIBPATH
@@ -39,6 +40,7 @@ static const char *const FLAGS[] = {
     "--help",
     "--tracing",
     "--version",
+    "--chdir",
 };
 
 static const char USAGE[] = "\
@@ -98,6 +100,8 @@ static int parse_flag(const char *arg)
         return OPT_LIBPATH;
     else if (starts_with(arg, "--execname="))
         return OPT_EXECNAME;
+    else if (starts_with(arg, "--chdir="))
+        return FLAG_CHDIR;
     else
         return UNKNOWN_FLAG;
 }
@@ -111,6 +115,7 @@ int wmain(int argc, wchar_t *wargv[])
     MVMInstance *instance;
     const char  *input_file;
     const char  *executable_name = NULL;
+    const char  *chdir_name = NULL;
     const char  *lib_path[8];
 
 #ifdef _WIN32
@@ -146,6 +151,9 @@ int wmain(int argc, wchar_t *wargv[])
             MVM_interp_enable_tracing();
             continue;
 #endif
+            case FLAG_CHDIR:
+            chdir_name = argv[argi] + strlen("--chdir=");
+            continue;
 
             case OPT_EXECNAME:
             executable_name = argv[argi] + strlen("--execname=");
@@ -200,6 +208,7 @@ int wmain(int argc, wchar_t *wargv[])
     MVM_vm_set_clargs(instance, argc - argi, argv + argi);
     MVM_vm_set_prog_name(instance, input_file);
     MVM_vm_set_exec_name(instance, executable_name);
+    MVM_dir_chdir_C_string(instance, chdir_name);
     MVM_vm_set_lib_path(instance, lib_path_i, lib_path);
 
     /* Ignore SIGPIPE by default, since we error-check reads/writes. This does
