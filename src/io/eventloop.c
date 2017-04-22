@@ -1,4 +1,5 @@
 #include "moar.h"
+#include "profiler/telemeh.h"
 
 /* Asynchronous I/O, timers, file system notifications and signal handlers
  * have their callbacks processed by this event loop. Its job is mostly to

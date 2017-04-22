@@ -1,4 +1,5 @@
 #include "moar.h"
+#include "profiler/telemeh.h"
 
 /* This representation's function pointer table. */
 static const MVMREPROps ReentrantMutex_this_repr;

@@ -1,5 +1,6 @@
 #include "moar.h"
 #include <platform/threads.h>
+#include "profiler/telemeh.h"
 
 /* If we have the job of doing GC for a thread, we add it to our work
  * list. */

@@ -1,5 +1,6 @@
 #include "moar.h"
 #include <platform/threads.h>
+#include "profiler/telemeh.h"
 
 /* Temporary structure for passing data to thread start. */
 typedef struct {

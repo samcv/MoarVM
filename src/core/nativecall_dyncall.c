@@ -2,6 +2,7 @@
 #ifndef _WIN32
 #include <dlfcn.h>
 #endif
+#include "profiler/telemeh.h"
 
 /* Maps a calling convention name to an ID. */
 MVMint16 MVM_nativecall_get_calling_convention(MVMThreadContext *tc, MVMString *name) {

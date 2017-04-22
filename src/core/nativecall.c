@@ -2,6 +2,7 @@
 #ifndef _WIN32
 #include <dlfcn.h>
 #endif
+#include "profiler/telemeh.h"
 
 /* Grabs a NativeCall body. */
 MVMNativeCallBody * MVM_nativecall_get_nc_body(MVMThreadContext *tc, MVMObject *obj) {

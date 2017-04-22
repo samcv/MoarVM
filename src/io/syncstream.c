@@ -1,4 +1,5 @@
 #include "moar.h"
+#include "profiler/telemeh.h"
 
 /* We only get asynchronous forms of various kinds of I/O with libuv, yet we
  * also need to provide synchronous I/O on those. Here we do the work of that
