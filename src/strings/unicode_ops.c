@@ -182,12 +182,12 @@ MVMint64 MVM_unicode_string_compare
     }
     else if (collation_mode & 64) {
         return alen < blen ? -1 :
-               alen > blen ?  1 :
+               blen < alen ?  1 :
                               0 ;
     }
     else if (collation_mode & 128) {
         return alen < blen ?  1 :
-               alen > blen ? -1 :
+               blen < alen ? -1 :
                               0 ;
     }
     MVM_exception_throw_adhoc(tc, "unicmp_s end of function should not be reachable\n");
@@ -215,7 +215,7 @@ MVMString * MVM_unicode_get_name(MVMThreadContext *tc, MVMint64 codepoint) {
     if (codepoint < 0) {
         name = "<illegal>";
     }
-    else if (codepoint > 0x10ffff) {
+    else if (0x10ffff < codepoint) {
         name = "<unassigned>";
     }
 
