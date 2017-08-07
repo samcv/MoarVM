@@ -947,9 +947,12 @@ MVMint32 MVM_unicode_name_to_property_value_code(MVMThreadContext *tc, MVMint64 
     else {
         MVMuint64 size;
         char *cname = MVM_string_ascii_encode(tc, name, &size, 0);
+        char *out_str = alloca(sizeof(char) * (size + (property_code / 10 + 2)));
         MVMUnicodeNameRegistry *result;
+        sprintf(out_str, "%"PRIi64"-%s", property_code, cname);
+        fprintf(stderr, "%s\n", out_str);
 
-        HASH_FIND(hash_handle, unicode_property_values_hashes[property_code], cname, strlen((const char *)cname), result);
+        HASH_FIND(hash_handle, unicode_property_values_hashes[property_code], out_str, strlen((const char *)out_str), result);
         MVM_free(cname); /* not really codepoint, really just an index */
         return result ? result->codepoint : 0;
     }

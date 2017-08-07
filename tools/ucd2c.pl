@@ -79,6 +79,7 @@ sub main {
         derived_property('CombiningClass',
             'Canonical_Combining_Class', { Not_Reordered => 0 }, 1)
     );
+    Jamo($points_by_code);
     collation();
     BidiMirroring();
     goto skip_most if $skip_most_mode;
@@ -86,6 +87,7 @@ sub main {
     binary_props('emoji/emoji-data');
     enumerated_property('ArabicShaping', 'Joining_Group', {}, 0, 3);
     enumerated_property('Blocks', 'Block', { No_Block => 0 }, 1, 1);
+    #enumerated_property('Jamo', 'Jamo_Short_Name', {  }, 1, 1);
     enumerated_property('extracted/DerivedDecompositionType', 'Decomposition_Type', { None => 0 }, 1, 1);
     enumerated_property('extracted/DerivedEastAsianWidth', 'East_Asian_Width', {}, 0, 1);
     enumerated_property('ArabicShaping', 'Joining_Type', {}, 0, 2);
@@ -111,7 +113,6 @@ sub main {
         'Numeric_Type', { None => 0 }, 1, 1);
     enumerated_property('HangulSyllableType',
         'Hangul_Syllable_Type', { Not_Applicable => 0 }, 1, 1);
-    Jamo();
     LineBreak();
     NamedSequences();
     binary_props('PropList');
@@ -1021,16 +1022,26 @@ struct MVMUnicodeNamedValue {
         my @aliases = split /\s*[#;]\s*/;
         for my $name (@aliases) {
             if (exists $prop_names->{$name}) {
-                for (@aliases) {
-                    $prop_names->{$_} = $prop_names->{$name}
-                        unless $_ eq $name;
-                    $prop_codes->{$_} = $name;
+                for my $al (@aliases) {
+                    $prop_names->{$al} = $prop_names->{$name}
+                        unless $al eq $name;
+                    my $lc = lc $al;
+                    $prop_names->{$lc} = $prop_names->{$name}
+                        unless $lc eq $name or $lc eq $al;
+                    my $no_ = $lc;
+                    $no_ =~ s/_//g;
+                    $prop_names->{$no_} = $prop_names->{$name}
+                        unless $no_ eq $name or $no_ eq $name or $no_ eq $al;
+                    $prop_codes->{$al} = $name;
                 }
                 last;
             }
         }
     });
+    say "PROP_NAMES";
+    say Dumper $prop_names;
     my %aliases;
+    my %done;
     my %lines;
     each_line('PropertyValueAliases', sub { $_ = shift;
         if (/^# (\w+) \((\w+)\)/) {
@@ -1043,6 +1054,7 @@ struct MVMUnicodeNamedValue {
         if (exists $prop_names->{$propname}) {
             if (($parts[0] eq 'Y' || $parts[0] eq 'N') && ($parts[1] eq 'Yes' || $parts[1] eq 'No')) {
                 my $prop_val = $prop_names->{$propname};
+                say "X propname: $propname";
                 for ($propname, @{$aliases{$propname} // []}) {
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
@@ -1053,37 +1065,49 @@ struct MVMUnicodeNamedValue {
             if ($parts[-1] =~ /\|/) { # it's a union
                 pop @parts;
                 my $unionname = $parts[0];
+                say "propname: $propname unionname: $unionname";
+                my $prop_val;
                 if (exists $binary_properties->{$unionname}) {
-                    my $prop_val = $binary_properties->{$unionname}->{field_index};
-                    for (@parts) {
-                        $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                        $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                        $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
-                    }
+                    say "is binary prop";
+                    $prop_val = $binary_properties->{$unionname}->{field_index};
+                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
+                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
+                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                }
+                $prop_val = $prop_names->{$propname};
+                for (@parts) {
+                    say "unionname: $unionname \$_ $_ prop_val $prop_val";
+                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
+                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
+                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
                 }
             }
-            elsif (exists $prop_names->{$propname}) {
+            else {
+                my $prop_val = $prop_names->{$propname};
                 for (@parts) {
+                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
+                    say "propname: $propname part: $_";
                     push @{ $aliases{$propname} }, $_
                 }
             }
         }
     }, 1);
-    my %done;
-    for my $propname (qw(gc sc), keys %lines) {
-        for (keys %{$lines{$propname}}) {
-            $done{"$propname$_"} ||= push @lines, $lines{$propname}->{$_};
+    say "LINES";
+    say Dumper %lines;
+    for my $propname (qw(gc sc), sort keys %lines) {
+        for (sort keys %{$lines{$propname}}) {
+            $done{"$_"} ||= push @lines, $lines{$propname}->{$_};
         }
     }
-    for my $key (qw(gc sc), keys %$prop_names) {
+    for my $key (qw(gc sc), sort keys %$prop_names) {
         $_ = $key;
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-        $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+        $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
+        $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
+        $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         for (@{ $aliases{$key} }) {
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
-            $done{"$key$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
+            $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
+            $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
+            $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         }
     }
     $hout .= "
@@ -1199,29 +1223,43 @@ struct MVMUnicodeNamedAlias {
 typedef struct MVMUnicodeNamedAlias MVMUnicodeNamedAlias;
 END
 }
+sub thing {
+    my ($default, $propname, $prop_val, $hash) = @_;
+    $_ = $default;
+    #say "default: $default propname: $propname";
+    my $propcode = $prop_names->{$propname} // $prop_names->{$default} // die;
+    # Workaround to 'space' not getting added here
+    $hash->{$propname}->{space} = "{\"$propcode-space\",$prop_val}"
+        if $default eq 'White_Space' and $propname eq '_custom_';
+    $hash->{$propname}->{$_} = "{\"$propcode-$_\",$prop_val}";
+    $hash->{$propname}->{$_} = "{\"$propcode-$_\",$prop_val}" if s/_//g;
+    $hash->{$propname}->{$_} = "{\"$propcode-$_\",$prop_val}" if y/A-Z/a-z/;
+}
 sub emit_unicode_property_value_keypairs {
     my @lines = ();
     my $property;
-    for (keys %$enumerated_properties) {
+    my %lines;
+    my %aliases;
+    for (sort keys %$binary_properties) {
+        my $prop_val = ($prop_names->{$_} << 24) + 1;
+        thing($_, '_custom_', $prop_val, \%lines);
+    }
+    for (sort keys %$enumerated_properties) {
         my $enum = $enumerated_properties->{$_}->{enum};
         my $toadd = {};
-        for (keys %$enum) {
+        for (sort keys %$enum) {
             my $key = lc("$_");
             $key =~ s/[_\-\s]/./g;
             $toadd->{$key} = $enum->{$_};
         }
-        for (keys %$toadd) {
+        for (sort keys %$toadd) {
             $enum->{$_} = $toadd->{$_};
         }
     }
-    my %lines;
-    my %aliases;
-    for (keys %$binary_properties) {
-        my $prop_val = ($prop_names->{$_} << 24) + 1;
-        $lines{_custom_}->{$_} = "{\"$_\",$prop_val}";
-        $lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-        $lines{_custom_}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+    if (!%lines) {
+        die "lines didn't get anything in it";
     }
+    #say Dumper $prop_names;
     each_line('PropertyValueAliases', sub { $_ = shift;
         if (/^# (\w+) \((\w+)\)/) {
             $aliases{$2} = $1;
@@ -1236,9 +1274,7 @@ sub emit_unicode_property_value_keypairs {
             if (($parts[0] eq 'Y' || $parts[0] eq 'N') && ($parts[1] eq 'Yes' || $parts[1] eq 'No')) {
                 $prop_val++; # one bit width
                 for ($propname, ($aliases{$propname} // ())) {
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
-                    $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
+                    thing($_, $propname, $prop_val, \%lines);
                 }
                 return
             }
@@ -1249,9 +1285,7 @@ sub emit_unicode_property_value_keypairs {
                     my $prop_val = $binary_properties->{$unionname}->{field_index} << 24;
                     my $value    = $binary_properties->{$unionname}->{bit_width};
                     for (@parts) {
-                        $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}";
-                        $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
-                        $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
+                        thing($_, $propname, $prop_val + $value, \%lines);
                     }
                     die Dumper($propname) if /^letter$/
                 }
@@ -1279,16 +1313,14 @@ sub emit_unicode_property_value_keypairs {
             for (@parts) {
                 s/[\-\s]/./g;
                 next if /[\.\|]/;
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}";
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if s/_//g;
-                $lines{$propname}->{$_} = "{\"$_\",".($prop_val + $value)."}" if y/A-Z/a-z/;
+                thing($_, $propname, $prop_val + $value, \%lines);
             }
         }
     }, 1);
     my %done;
     # Aliases like L appear in several categories, but we prefere gc and sc.
-    for my $propname (qw(gc sc), keys %lines) {
-        for (keys %{$lines{$propname}}) {
+    for my $propname (qw(_custom_ gc sc), sort keys %lines) {
+        for (sort keys %{$lines{$propname}}) {
             $done{"$propname$_"} ||= push @lines, $lines{$propname}->{$_};
         }
     }
@@ -1308,7 +1340,7 @@ sub emit_composition_lookup {
     # first codepoint of the decomposition of a primary composite, mapped to
     # an array of [second codepoint, primary composite].
     my @lookup;
-    for my $point_hex (keys %$points_by_hex) {
+    for my $point_hex (sort keys %$points_by_hex) {
         # Not interested in anything in the set of full composition exclusions.
         my $point = $points_by_hex->{$point_hex};
         next if $point->{Full_Composition_Exclusion};
@@ -1569,7 +1601,7 @@ sub UnicodeData {
             my $current = $ideograph_start;
             while ($current->{code} < $point->{code} - 1) {
                 my $new = { Any => 1 };
-                for (keys %$current) {
+                for (sort keys %$current) {
                     $new->{$_} = $current->{$_};
                 }
                 $new->{code}++;
@@ -1675,14 +1707,14 @@ sub DerivedNormalizationProps {
         NFD_QC => 1,
         NFKD_QC => 1
     };
-    register_binary_property($_) for ((keys %$binary),(keys %$inverted_binary));
+    register_binary_property($_) for ((sort keys %$binary),(sort keys %$inverted_binary));
     my $trinary = {
         NFC_QC => 1,
         NFKC_QC => 1,
         NFG_QC => 1,
     };
     my $trinary_values = { 'N' => 0, 'Y' => 1, 'M' => 2 };
-    register_enumerated_property($_, { enum => $trinary_values, bit_width => 2, 'keys' => ['N','Y','M'] }) for (keys %$trinary);
+    register_enumerated_property($_, { enum => $trinary_values, bit_width => 2, 'keys' => ['N','Y','M'] }) for (sort keys %$trinary);
     each_line('DerivedNormalizationProps', sub { $_ = shift;
         my ($range, $property_name, $value) = split /\s*[;#]\s*/;
         if (exists $binary->{$property_name}) {
@@ -1720,10 +1752,37 @@ sub DerivedNormalizationProps {
 }
 
 sub Jamo {
+    my $points_by_code = shift;
+    my $propname = 'Jamo_Short_Name';
     each_line('Jamo', sub { $_ = shift;
         my ($code_str, $name) = split /\s*[;#]\s*/;
-        $points_by_hex->{$code_str}->{Jamo_Short_Name} = $name;
+        apply_to_range($code_str, sub {
+            my $point = shift;
+            $point->{Jamo_Short_Name} = $name;
+        });
     });
+    my @hangul_syllables;
+    for my $key (sort keys %{$points_by_code}) {
+        if (%{$points_by_code}{$key}->{name} eq '<Hangul Syllable>') {
+            push @hangul_syllables, $key;
+        }
+    }
+    my $hs = join ',', @hangul_syllables;
+    my $out = `perl6 -e 'my \@cps = $hs; for \@cps -> \$cp { \$cp.chr.NFD.list.join(",").say };'`;
+    my @out_lines = split "\n", $out;
+    my $i = 0;
+    for my $line (@out_lines) {
+        my $final_name = 'Hangul Syllable ';
+        my $hs_cps = $hangul_syllables[$i++];
+        my @a = split ',', $line;
+        for my $cp (@a) {
+            if (exists %{$points_by_code}{$cp}->{Jamo_Short_Name}) {
+                $final_name .= %{$points_by_code}{$cp}->{Jamo_Short_Name};
+            }
+        }
+        %{$points_by_code}{$hs_cps}->{name} = $final_name;
+        #say "In: $hs_cps name: $final_name";
+    }
 }
 sub BidiMirroring {
     my $file = 'BidiMirroring';
