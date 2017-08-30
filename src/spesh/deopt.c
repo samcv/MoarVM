@@ -31,9 +31,11 @@ static void uninline(MVMThreadContext *tc, MVMFrame *f, MVMSpeshCandidate *cand,
     for (i = 0; i < cand->num_inlines; i++) {
         if (offset >= cand->inlines[i].start && offset < cand->inlines[i].end) {
             /* Create the frame. */
-            MVMCode        *ucode = cand->inlines[i].code;
-            MVMStaticFrame *usf   = ucode->body.sf;
+            MVMCode        *ucode = (MVMCode *)f->work[cand->inlines[i].code_ref_reg].o;
+            MVMStaticFrame *usf   = cand->inlines[i].sf;
             MVMFrame       *uf;
+            if (REPR(ucode)->ID != MVM_REPR_ID_MVMCode)
+                MVM_panic(1, "Deopt: did not find code object when uninlining");
             MVMROOT(tc, f, {
             MVMROOT(tc, callee, {
             MVMROOT(tc, last_uninlined, {
@@ -56,6 +58,11 @@ static void uninline(MVMThreadContext *tc, MVMFrame *f, MVMSpeshCandidate *cand,
             if (usf->body.num_lexicals)
                 memcpy(uf->env, f->env + cand->inlines[i].lexicals_start,
                     usf->body.num_lexicals * sizeof(MVMRegister));
+
+            /* Store the named argument used bit field, since if we deopt in
+             * argument handling code we may have missed some. */
+            if (cand->inlines[i].deopt_named_used_bit_field)
+                uf->params.named_used.bit_field = cand->inlines[i].deopt_named_used_bit_field;
 
             /* Did we already uninline a frame? */
             if (last_uninlined) {
@@ -150,21 +157,15 @@ static void uninline(MVMThreadContext *tc, MVMFrame *f, MVMSpeshCandidate *cand,
     }
 }
 
-static MVMint32 find_deopt_target(MVMThreadContext *tc, MVMFrame *f, MVMint32 deopt_offset) {
-    MVMint32 i;
-    for (i = 0; i < f->spesh_cand->num_deopts * 2; i += 2) {
-        if (f->spesh_cand->deopts[i + 1] == deopt_offset) {
-            return f->spesh_cand->deopts[i];
-        }
-    }
-    MVM_oops(tc, "find_deopt_target failed for %s (%s)",
-        MVM_string_utf8_encode_C_string(tc, tc->cur_frame->static_info->body.name),
-        MVM_string_utf8_encode_C_string(tc, tc->cur_frame->static_info->body.cuuid));
+static void deopt_named_args_used(MVMThreadContext *tc, MVMFrame *f) {
+    if (f->spesh_cand->deopt_named_used_bit_field)
+        f->params.named_used.bit_field = f->spesh_cand->deopt_named_used_bit_field;
 }
 
 static void deopt_frame(MVMThreadContext *tc, MVMFrame *f, MVMint32 deopt_offset, MVMint32 deopt_target) {
     /* Found it; are we in an inline? */
     MVMSpeshInline *inlines = f->spesh_cand->inlines;
+    deopt_named_args_used(tc, f);
     if (inlines) {
         /* Yes, going to have to re-create the frames; uninline
          * moves the interpreter, so we can just tweak the last
@@ -201,19 +202,21 @@ static void deopt_frame(MVMThreadContext *tc, MVMFrame *f, MVMint32 deopt_offset
 
 /* De-optimizes the currently executing frame, provided it is specialized and
  * at a valid de-optimization point. Typically used when a guard fails. */
-void MVM_spesh_deopt_one(MVMThreadContext *tc) {
+void MVM_spesh_deopt_one(MVMThreadContext *tc, MVMuint32 deopt_target) {
     MVMFrame *f = tc->cur_frame;
     if (tc->instance->profiling)
         MVM_profiler_log_deopt_one(tc);
 #if MVM_LOG_DEOPTS
-    fprintf(stderr, "deopt_one requested in frame '%s' (cuid '%s')\n",
+    fprintf(stderr, "Deopt one requested by interpreter in frame '%s' (cuid '%s')\n",
         MVM_string_utf8_encode_C_string(tc, tc->cur_frame->static_info->body.name),
         MVM_string_utf8_encode_C_string(tc, tc->cur_frame->static_info->body.cuuid));
 #endif
     clear_dynlex_cache(tc, f);
     if (f->spesh_cand) {
-        MVMint32 deopt_offset = *(tc->interp_cur_op) - f->spesh_cand->bytecode;
-        MVMint32 deopt_target = find_deopt_target(tc, f, deopt_offset);
+        MVMuint32 deopt_offset = *(tc->interp_cur_op) - f->spesh_cand->bytecode;
+#if MVM_LOG_DEOPTS
+    fprintf(stderr, "Will deopt %u -> %u\n", deopt_offset, deopt_target);
+#endif
         deopt_frame(tc, tc->cur_frame, deopt_offset, deopt_target);
     }
     else {
@@ -224,9 +227,15 @@ void MVM_spesh_deopt_one(MVMThreadContext *tc) {
 }
 
 /* De-optimizes the current frame by directly specifying the addresses */
-void MVM_spesh_deopt_one_direct(MVMThreadContext *tc, MVMint32 deopt_offset,
-                                MVMint32 deopt_target) {
+void MVM_spesh_deopt_one_direct(MVMThreadContext *tc, MVMuint32 deopt_offset,
+                                MVMuint32 deopt_target) {
     MVMFrame *f = tc->cur_frame;
+#if MVM_LOG_DEOPTS
+    fprintf(stderr, "Deopt one requested by JIT in frame '%s' (cuid '%s') (%u -> %u)\n",
+        MVM_string_utf8_encode_C_string(tc, f->static_info->body.name),
+        MVM_string_utf8_encode_C_string(tc, f->static_info->body.cuuid),
+        deopt_offset, deopt_target);
+#endif
     if (tc->instance->profiling)
         MVM_profiler_log_deopt_one(tc);
     clear_dynlex_cache(tc, f);
@@ -240,6 +249,11 @@ void MVM_spesh_deopt_all(MVMThreadContext *tc) {
     /* Walk frames looking for any callers in specialized bytecode. */
     MVMFrame *l = MVM_frame_force_to_heap(tc, tc->cur_frame);
     MVMFrame *f = tc->cur_frame->caller;
+#if MVM_LOG_DEOPTS
+    fprintf(stderr, "Deopt all requested in frame '%s' (cuid '%s')\n",
+        MVM_string_utf8_encode_C_string(tc, l->static_info->body.name),
+        MVM_string_utf8_encode_C_string(tc, l->static_info->body.cuuid));
+#endif
     if (tc->instance->profiling)
         MVM_profiler_log_deopt_all(tc);
     while (f) {
@@ -276,6 +290,7 @@ void MVM_spesh_deopt_all(MVMThreadContext *tc) {
                         }
 
                         /* No spesh cand/slots needed now. */
+                        deopt_named_args_used(tc, f);
                         f->effective_spesh_slots = NULL;
                         f->spesh_cand            = NULL;
                         f->jit_entry_label       = NULL;
@@ -285,15 +300,16 @@ void MVM_spesh_deopt_all(MVMThreadContext *tc) {
                 }
 #if MVM_LOG_DEOPTS
                 if (i == num_deopts)
-                    fprintf(stderr, "JIT: can't find deopt all idx");
+                    fprintf(stderr, "JIT: can't find deopt all idx\n");
 #endif
             }
 
             else {
                 /* Not JITted; see if we can find the return address in the deopt table. */
                 MVMint32 ret_offset = f->return_address - f->spesh_cand->bytecode;
+                MVMint32 n = f->spesh_cand->num_deopts * 2;
                 MVMint32 i;
-                for (i = 0; i < f->spesh_cand->num_deopts * 2; i += 2) {
+                for (i = 0; i < n; i += 2) {
                     if (f->spesh_cand->deopts[i + 1] == ret_offset) {
                         /* Re-create any frames needed if we're in an inline; if not,
                         * just update return address. */
@@ -315,6 +331,10 @@ void MVM_spesh_deopt_all(MVMThreadContext *tc) {
                         break;
                     }
                 }
+#if MVM_LOG_DEOPTS
+                if (i == n)
+                    fprintf(stderr, "Interpreter: can't find deopt all idx\n");
+#endif
             }
         }
         l = f;

@@ -3,6 +3,9 @@
 /* This allows the dynlex cache to be disabled when bug hunting, if needed. */
 #define MVM_DYNLEX_CACHE_ENABLED 1
 
+/* Check spesh candidate pre-selections match the guards. */
+#define MVM_SPESH_CHECK_PRESELECTION 0
+
 /* Computes the initial work area for a frame or a specialization of a frame. */
 MVMRegister * MVM_frame_initial_work(MVMThreadContext *tc, MVMuint16 *local_types,
                                      MVMuint16 num_locals) {
@@ -24,6 +27,15 @@ static void prepare_and_verify_static_frame(MVMThreadContext *tc, MVMStaticFrame
     /* Ensure the frame is fully deserialized. */
     if (!static_frame_body->fully_deserialized)
         MVM_bytecode_finish_frame(tc, cu, static_frame, 0);
+
+    /* If we never invoked this compilation unit before, and we have spesh
+     * enabled, we might either have no spesh log or a nearly full one. This
+     * will cause problems with gathering data to OSR hot loops. */
+    if (!cu->body.invoked) {
+        cu->body.invoked = 1;
+        if (tc->instance->spesh_enabled)
+            MVM_spesh_log_new_compunit(tc);
+    }
 
     /* Take compilation unit lock, to make sure we don't race to do the
      * frame preparation/verification work. */
@@ -451,7 +463,21 @@ void MVM_frame_invoke(MVMThreadContext *tc, MVMStaticFrame *static_frame,
     spesh = static_frame->body.spesh;
     if (spesh_cand < 0)
         spesh_cand = MVM_spesh_arg_guard_run(tc, spesh->body.spesh_arg_guard,
-            callsite, args);
+            callsite, args, NULL);
+#if MVM_SPESH_CHECK_PRESELECTION
+    else {
+        MVMint32 certain = -1;
+        MVMint32 correct = MVM_spesh_arg_guard_run(tc, spesh->body.spesh_arg_guard,
+            callsite, args, &certain);
+        if (spesh_cand != correct && spesh_cand != certain) {
+            fprintf(stderr, "Inconsistent spesh preselection of '%s' (%s): got %d, not %d\n",
+                MVM_string_utf8_encode_C_string(tc, static_frame->body.name),
+                MVM_string_utf8_encode_C_string(tc, static_frame->body.cuuid),
+                spesh_cand, correct);
+            MVM_dump_backtrace(tc);
+        }
+    }
+#endif
     if (spesh_cand >= 0) {
         MVMSpeshCandidate *chosen_cand = spesh->body.spesh_candidates[spesh_cand];
         if (static_frame->body.allocate_on_heap) {
@@ -587,8 +613,8 @@ void MVM_frame_invoke(MVMThreadContext *tc, MVMStaticFrame *static_frame,
 }
 
 /* Moves the specified frame from the stack and on to the heap. Must only
- * be called if the frame is already there. Use MVM_frame_force_to_heap when
- * not sure. */ 
+ * be called if the frame is not already there. Use MVM_frame_force_to_heap
+ * when not sure. */
 MVMFrame * MVM_frame_move_to_heap(MVMThreadContext *tc, MVMFrame *frame) {
     /* To keep things simple, we'll promote the entire stack. */
     MVMFrame *cur_to_promote = tc->cur_frame;
@@ -683,6 +709,20 @@ MVMFrame * MVM_frame_move_to_heap(MVMThreadContext *tc, MVMFrame *frame) {
     });
     });
     });
+#if MVM_GC_DEBUG
+    {
+        MVMFrame *check = new_cur_frame;
+        while (check) {
+            MVM_ASSERT_NOT_FROMSPACE(tc, check);
+            if ((check->header.flags & MVM_CF_SECOND_GEN) &&
+                    check->caller &&
+                    !(check->caller->header.flags & MVM_CF_SECOND_GEN) &&
+                    !(check->header.flags & MVM_CF_IN_GEN2_ROOT_LIST))
+                MVM_panic(1, "Gen2 -> Nursery after promotion without inter-gen set entry");
+            check = check->caller;
+        }
+    }
+#endif
 
     /* All is promoted. Update thread's current frame and reset the thread
      * local callstack. */
@@ -1056,7 +1096,7 @@ MVMObject * MVM_frame_vivify_lexical(MVMThreadContext *tc, MVMFrame *f, MVMuint1
         MVMint32 i;
         flags = NULL;
         for (i = 0; i < f->spesh_cand->num_inlines; i++) {
-            MVMStaticFrame *isf = f->spesh_cand->inlines[i].code->body.sf;
+            MVMStaticFrame *isf = f->spesh_cand->inlines[i].sf;
             effective_idx = idx - f->spesh_cand->inlines[i].lexicals_start;
             if (effective_idx < isf->body.num_lexicals) {
                 flags        = isf->body.static_env_flags;
@@ -1333,7 +1373,7 @@ MVMRegister * MVM_frame_find_contextual_by_name(MVMThreadContext *tc, MVMString 
                 for (i = 0; i < cand->jitcode->num_inlines; i++) {
                     icost++;
                     if (return_label >= labels[inls[i].start_label] && return_label <= labels[inls[i].end_label]) {
-                        MVMStaticFrame *isf = cand->inlines[i].code->body.sf;
+                        MVMStaticFrame *isf = cand->inlines[i].sf;
                         if ((lexical_names = isf->body.lexical_names)) {
                             MVMLexicalRegistry *entry;
                             MVM_HASH_GET(tc, lexical_names, name, entry);
@@ -1371,7 +1411,7 @@ MVMRegister * MVM_frame_find_contextual_by_name(MVMThreadContext *tc, MVMString 
                 for (i = 0; i < cand->num_inlines; i++) {
                     icost++;
                     if (ret_offset >= cand->inlines[i].start && ret_offset < cand->inlines[i].end) {
-                        MVMStaticFrame *isf = cand->inlines[i].code->body.sf;
+                        MVMStaticFrame *isf = cand->inlines[i].sf;
                         if ((lexical_names = isf->body.lexical_names)) {
                             MVMLexicalRegistry *entry;
                             MVM_HASH_GET(tc, lexical_names, name, entry);
@@ -1699,7 +1739,9 @@ MVMObject * MVM_frame_find_invokee(MVMThreadContext *tc, MVMObject *code, MVMCal
 }
 
 MVM_USED_BY_JIT
-MVMObject * MVM_frame_find_invokee_multi_ok(MVMThreadContext *tc, MVMObject *code, MVMCallsite **tweak_cs, MVMRegister *args) {
+MVMObject * MVM_frame_find_invokee_multi_ok(MVMThreadContext *tc, MVMObject *code,
+                                            MVMCallsite **tweak_cs, MVMRegister *args,
+                                            MVMuint16 *was_multi) {
     if (!code)
         MVM_exception_throw_adhoc(tc, "Cannot invoke null object");
     if (STABLE(code)->invoke == MVM_6model_invoke_default) {
@@ -1712,6 +1754,8 @@ MVMObject * MVM_frame_find_invokee_multi_ok(MVMThreadContext *tc, MVMObject *cod
                 MVM_exception_throw_adhoc(tc, "Can not invoke a code type object");
             if (MVM_p6opaque_read_int64(tc, code, is->md_valid_offset)) {
                 MVMObject *md_cache = MVM_p6opaque_read_object(tc, code, is->md_cache_offset);
+                if (was_multi)
+                    *was_multi = 1;
                 if (!MVM_is_null(tc, md_cache)) {
                     MVMObject *result = MVM_multi_cache_find_callsite_args(tc,
                         md_cache, *tweak_cs, args);
@@ -1738,6 +1782,8 @@ MVMObject * MVM_frame_find_invokee_multi_ok(MVMThreadContext *tc, MVMObject *cod
                 is->md_class_handle, is->md_valid_attr_name,
                 is->md_valid_hint, &dest, MVM_reg_int64);
             if (dest.i64) {
+                if (was_multi)
+                    *was_multi = 1;
                 REPR(code)->attr_funcs.get_attribute(tc,
                     STABLE(code), code, OBJECT_BODY(code),
                     is->md_class_handle, is->md_cache_attr_name,
@@ -1753,6 +1799,19 @@ MVMObject * MVM_frame_find_invokee_multi_ok(MVMThreadContext *tc, MVMObject *cod
         code = find_invokee_internal(tc, code, tweak_cs, is);
     }
     return code;
+}
+
+/* Rapid resolution of an invokee. Used by the specialized resolve code op. */
+MVMObject * MVM_frame_resolve_invokee_spesh(MVMThreadContext *tc, MVMObject *invokee) {
+    if (REPR(invokee)->ID == MVM_REPR_ID_MVMCode) {
+        return invokee;
+    }
+    else {
+        MVMInvocationSpec *is = STABLE(invokee)->invocation_spec;
+        if (is && is->code_ref_offset && IS_CONCRETE(invokee))
+            return MVM_p6opaque_read_object(tc, invokee, is->code_ref_offset);
+    }
+    return tc->instance->VMNull;
 }
 
 /* Creates a MVMContent wrapper object around an MVMFrame. */

@@ -59,6 +59,7 @@ MVMGrapheme32 MVM_string_get_grapheme_at_nocheck(MVMThreadContext *tc, MVMString
 MVMint64 MVM_string_equal(MVMThreadContext *tc, MVMString *a, MVMString *b);
 MVMint64 MVM_string_index(MVMThreadContext *tc, MVMString *haystack, MVMString *needle, MVMint64 start);
 MVMint64 MVM_string_index_ignore_case(MVMThreadContext *tc, MVMString *haystack, MVMString *needle, MVMint64 start);
+MVMint64 MVM_string_index_ignore_mark(MVMThreadContext *tc, MVMString *Haystack, MVMString *needle, MVMint64 start);
 MVMint64 MVM_string_index_ignore_case_ignore_mark(MVMThreadContext *tc, MVMString *haystack, MVMString *needle, MVMint64 start);
 MVMint64 MVM_string_index_from_end(MVMThreadContext *tc, MVMString *haystack, MVMString *needle, MVMint64 start);
 MVMString * MVM_string_concatenate(MVMThreadContext *tc, MVMString *a, MVMString *b);
@@ -69,6 +70,7 @@ void MVM_string_say(MVMThreadContext *tc, MVMString *a);
 void MVM_string_print(MVMThreadContext *tc, MVMString *a);
 MVMint64 MVM_string_equal_at(MVMThreadContext *tc, MVMString *a, MVMString *b, MVMint64 offset);
 MVMint64 MVM_string_equal_at_ignore_case(MVMThreadContext *tc, MVMString *a, MVMString *b, MVMint64 offset);
+MVMint64 MVM_string_equal_at_ignore_mark(MVMThreadContext *tc, MVMString *Haystack, MVMString *needle, MVMint64 H_offset);
 MVMint64 MVM_string_equal_at_ignore_case_ignore_mark(MVMThreadContext *tc, MVMString *a, MVMString *b, MVMint64 offset);
 MVMGrapheme32 MVM_string_ord_basechar_at(MVMThreadContext *tc, MVMString *s, MVMint64 offset);
 MVMGrapheme32 MVM_string_ord_at(MVMThreadContext *tc, MVMString *s, MVMint64 offset);
@@ -107,3 +109,19 @@ MVMint64 MVM_string_find_not_cclass(MVMThreadContext *tc, MVMint64 cclass, MVMSt
 MVMuint8 MVM_string_find_encoding(MVMThreadContext *tc, MVMString *name);
 MVMString * MVM_string_chr(MVMThreadContext *tc, MVMint64 cp);
 void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s);
+/* If MVM_DEBUG_NFG is 1, calls to NFG_CHECK will re_nfg the given string
+ * and compare num_graphs before and after the normalization.
+ * If it is different debug information will be printed out.
+#define MVM_DEBUG_NFG 1 */
+/* MVM_DEBUG_NFG_STRICT does as above but does not only rely on num_graphs. It
+ * always checks every grapheme manually. Slower. (requires MVM_DEBUG_NFG)
+#define MVM_DEBUG_NFG_STRICT 0 */
+#if MVM_DEBUG_NFG
+void NFG_check (MVMThreadContext *tc, MVMString *orig, char *varname);
+void NFG_check_concat (MVMThreadContext *tc, MVMString *result, MVMString *a, MVMString *b, char *varname);
+#define NFG_CHECK(tc, s, varname)              NFG_check(tc, s, varname);
+#define NFG_CHECK_CONCAT(tc, s, a, b, varname) NFG_check_concat(tc, s, a, b, varname);
+#else
+#define NFG_CHECK(tc, s, varname)
+#define NFG_CHECK_CONCAT(tc, s, a, b, varname)
+#endif

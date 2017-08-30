@@ -10,7 +10,7 @@ static void calculate_work_env_sizes(MVMThreadContext *tc, MVMStaticFrame *sf,
     max_callsite_size = sf->body.cu->body.max_callsite_size;
 
     for (i = 0; i < c->num_inlines; i++) {
-        MVMuint32 cs = c->inlines[i].code->body.sf->body.cu->body.max_callsite_size;
+        MVMuint32 cs = c->inlines[i].sf->body.cu->body.max_callsite_size;
         if (cs > max_callsite_size)
             max_callsite_size = cs;
     }
@@ -52,6 +52,7 @@ void MVM_spesh_candidate_add(MVMThreadContext *tc, MVMSpeshPlanned *p) {
         MVM_free(c_name);
         MVM_free(c_cuid);
         MVM_free(before);
+        fflush(tc->instance->spesh_log_fh);
     }
 
     /* Perform the optimization and, if we're logging, dump out the result. */
@@ -65,6 +66,7 @@ void MVM_spesh_candidate_add(MVMThreadContext *tc, MVMSpeshPlanned *p) {
         fprintf(tc->instance->spesh_log_fh, "Specialization took %dus\n\n========\n\n",
             (int)((uv_hrtime() - start_time) / 1000));
         MVM_free(after);
+        fflush(tc->instance->spesh_log_fh);
     }
 
     /* Generate code and install it into the candidate. */
@@ -76,6 +78,7 @@ void MVM_spesh_candidate_add(MVMThreadContext *tc, MVMSpeshPlanned *p) {
     candidate->num_handlers  = sg->num_handlers;
     candidate->num_deopts    = sg->num_deopt_addrs;
     candidate->deopts        = sg->deopt_addrs;
+    candidate->deopt_named_used_bit_field = sg->deopt_named_used_bit_field;
     candidate->num_locals    = sg->num_locals;
     candidate->num_lexicals  = sg->num_lexicals;
     candidate->num_inlines   = sg->num_inlines;
@@ -126,10 +129,18 @@ void MVM_spesh_candidate_add(MVMThreadContext *tc, MVMSpeshPlanned *p) {
     if (spesh->common.header.flags & MVM_CF_SECOND_GEN)
         MVM_gc_write_barrier_hit(tc, (MVMCollectable *)spesh);
 
-    /* Install the new candidate by bumping the number of candidates in
-     * order to make it available, and then updating the guards. */
+    /* Update the guards, and bump the candidate count. This means there is a
+     * period when we can read, in another thread, a candidate ahead of the
+     * count being updated. Since we set it up above, that's fine enough. The
+     * updating of the count *after* this, plus the barrier, is to make sure
+     * the guards are in place before the count is bumped, since OSR will
+     * watch the number of candidates to see if there's one for it to try and
+     * jump in to, and if the guards aren't in place first will see there is
+     * not, and not bother checking again. */
     MVM_spesh_arg_guard_add(tc, &(spesh->body.spesh_arg_guard),
-        p->cs_stats->cs, p->type_tuple, spesh->body.num_spesh_candidates++);
+        p->cs_stats->cs, p->type_tuple, spesh->body.num_spesh_candidates);
+    MVM_barrier();
+    spesh->body.num_spesh_candidates++;
 
     /* If we're logging, dump the updated arg guards also. */
     if (tc->instance->spesh_log_fh) {
