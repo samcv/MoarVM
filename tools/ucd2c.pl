@@ -61,7 +61,15 @@ my %is_subtype = (
 );
 my $gc_alias_checkers = [];
 
-sub trim { my $s = shift; $s =~ s/^\s+|\s+$//g; return $s };
+sub trim {
+    my $s = shift;
+    $s =~ s/\s+$//g;
+    $s =~ s/^\s+//g;
+    if ($s =~ /^ / or $s =~ / $/) {
+        die "'$s'";
+    }
+    return $s;
+}
 
 sub progress($);
 sub main {
@@ -1011,7 +1019,21 @@ static void generate_codepoints_by_name(MVMThreadContext *tc) {
 END
     $db_sections->{names_hash_builder} = $out;
 }#"
-
+sub throwit {
+    my $thing = shift;
+    my $name  = shift;
+    $name = $name ? "arg: '$name'" : "";
+    croak "$name thing = '$thing'" if $thing =~ / /;
+    $thing;
+}
+sub throwitunion {
+    my $thing = shift;
+    if ($thing =~ / / and $thing =~ /[|]/ and !($thing =~ /\S\S\S/)) {
+        return $thing;
+    }
+    croak "thing = '$thing'" if $thing =~ / /;
+    $thing;
+}
 sub emit_unicode_property_keypairs {
     my $hout = "
 struct MVMUnicodeNamedValue {
@@ -1051,12 +1073,23 @@ struct MVMUnicodeNamedValue {
         }
         return if /^(?:#|\s*$)/;
         my @parts = split /\s*[#;]\s*/;
+        foreach my $thing (@parts) {
+            if ($thing eq 'gc') {
+                say Dumper @parts;
+            }
+            throwitunion($thing);
+            die "waka"
+                if ($thing =~ /[;#]/)
+        }
         my $propname = shift @parts;
         if (exists $prop_names->{$propname}) {
             if (($parts[0] eq 'Y' || $parts[0] eq 'N') && ($parts[1] eq 'Yes' || $parts[1] eq 'No')) {
                 my $prop_val = $prop_names->{$propname};
-                say "X propname: $propname";
+                say "X propname: '$propname'";
+                throwit($prop_val);
+                throwit($propname);
                 for ($propname, @{$aliases{$propname} // []}) {
+                    throwit($_);
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
@@ -1066,18 +1099,23 @@ struct MVMUnicodeNamedValue {
             if ($parts[-1] =~ /\|/) { # it's a union
                 pop @parts;
                 my $unionname = $parts[0];
-                say "propname: $propname unionname: $unionname";
+                say "propname: '$propname' unionname: '$unionname'";
                 my $prop_val;
                 if (exists $binary_properties->{$unionname}) {
                     say "is binary prop";
                     $prop_val = $binary_properties->{$unionname}->{field_index};
+                    throwit($prop_val);
+                    throwit($propname);
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
                 }
                 $prop_val = $prop_names->{$propname};
+                throwit($prop_val);
                 for (@parts) {
-                    say "unionname: $unionname \$_ $_ prop_val $prop_val";
+                    throwit($prop_val);
+                    throwit($_);
+                    say "unionname: '$unionname' \$_ '$_' prop_val '$prop_val'";
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if s/_//g;
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}" if y/A-Z/a-z/;
@@ -1085,23 +1123,45 @@ struct MVMUnicodeNamedValue {
             }
             else {
                 my $prop_val = $prop_names->{$propname};
+                throwit($prop_val);
                 for (@parts) {
+                    throwit($_);
                     $lines{$propname}->{$_} = "{\"$_\",$prop_val}";
-                    say "propname: $propname part: $_";
+                    say "propname: '$propname' part: '$_'";
                     push @{ $aliases{$propname} }, $_
                 }
             }
         }
     }, 1);
-    say "LINES";
-    say Dumper %lines;
+    say "LINES" . Dumper %lines;
     for my $propname (qw(gc sc), sort keys %lines) {
         for (sort keys %{$lines{$propname}}) {
-            $done{"$_"} ||= push @lines, $lines{$propname}->{$_};
+            if (/[#]/) {
+                my $value = $lines{$propname}{$_};
+                my $old   = $_;
+                my $orig = $_;
+                say "value: '$value', old: '$old'";
+                $old =~ s/[#].*//;
+                my @a = split /\s*;\s*/, $old;
+                my $pname = shift @a;
+                for my $name (@a) {
+                    $name = trim $name;
+                    my $v2 = $value;
+                    $v2 =~ s/".*"/"$name"/;
+                    say "v2: '$v2'";
+                    $lines{$propname}{$name} = $v2;
+                    $done{"$v2"} = push @lines, $v2;
+                }
+            }
+            else {
+                #throwit($_, $propname);
+                $done{"$_"} ||= push @lines, $lines{$propname}->{$_};
+            }
         }
     }
     for my $key (qw(gc sc), sort keys %$prop_names) {
         $_ = $key;
+        #throwit($_);
         $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}";
         $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if s/_//g;
         $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
@@ -1111,6 +1171,8 @@ struct MVMUnicodeNamedValue {
             $done{"$_"} ||= push @lines, "{\"$_\",$prop_names->{$key}}" if y/A-Z/a-z/;
         }
     }
+    # Reverse the @lines array so that later added entries take precedence
+    @lines = reverse @lines;
     $hout .= "
 #define num_unicode_property_keypairs ".scalar(@lines)."\n";
     my $out = "
@@ -1268,7 +1330,17 @@ sub emit_unicode_property_value_keypairs {
         }
         return if /^(?:#|\s*$)/;
         my @parts = split /\s*[#;]\s*/;
+        my @parts2;
+        foreach my $part (@parts) {
+            $part = trim($part);
+            if ($part =~ /[;]/) {
+                die;
+            }
+            push @parts2, trim($part);
+        }
+        @parts = @parts2;
         my $propname = shift @parts;
+        $propname = trim $propname;
         if (exists $prop_names->{$propname}) {
             my $prop_val = $prop_names->{$propname} << 24;
             # emit binary properties
@@ -1525,6 +1597,13 @@ sub UnicodeData {
     register_binary_property('Any');
     each_line('PropertyValueAliases', sub { $_ = shift;
         my @parts = split /\s*[#;]\s*/;
+        my @parts2;
+        foreach my $part (@parts) {
+            $part = trim $part;
+            push @parts2, $part;
+            #die "moo\n'$part'" if ($part =~ / /);
+        }
+        @parts = @parts2;
         my $propname = shift @parts;
         return if ($parts[0] eq 'Y'   || $parts[0] eq 'N')
                && ($parts[1] eq 'Yes' || $parts[1] eq 'No');
