@@ -1770,7 +1770,7 @@ MVMint64 MVM_string_offset_has_unicode_property_value(MVMThreadContext *tc, MVMS
     MVMCodepoint  cp;
 
     MVM_string_check_arg(tc, s, "uniprop");
-    fprintf(stderr, "string has offset, prop %i pval %i\n", property_code, property_value_code);
+    fprintf(stderr, "string has offset, prop %"PRIi64" pval %"PRIi64"\n", property_code, property_value_code);
     if (offset < 0 || offset >= MVM_string_graphs_nocheck(tc, s))
         return 0;
 
