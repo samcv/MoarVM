@@ -1152,7 +1152,8 @@ struct MVMUnicodeNamedValue {
                     say "v2: '$v2'";
                     push @v2a, $v2;
                     $lines{$propname}{$name} = $v2;
-                    $done{"$v2"} ||= push @lines, $v2;
+                    # NEEDED
+                    $done{"$name"} = push @lines, $v2;
                 }
             }
             else {
