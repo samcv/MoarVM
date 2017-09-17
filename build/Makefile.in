@@ -609,9 +609,9 @@ clean:
 	$(MSG) remove build files
 	-$(CMD)$(RM) $(MAIN_OBJECTS) $(OBJECTS) $(JIT_INTERMEDIATES) $(NOOUT) $(NOERR)
 
-ifneq ("$(wildcard 3rdparty/libatomic_ops/src/Makefile)", "")
+@ifneq_start@"$(wildcard 3rdparty/libatomic_ops/src/Makefile)"@ifneq_middle@""@ifneq_end@
 realclean: clean_libatomic
-endif
+@endif@
 
 clean_libatomic:
 	$(MSG) cleaning libatomic_ops

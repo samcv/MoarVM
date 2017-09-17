@@ -150,7 +150,10 @@ our %TC_POSIX = (
 
 our %TC_GNU = (
     %TC_POSIX,
-
+    ifneq_start => 'ifneq (',
+    ifneq_middle => ', ',
+    ifneq_end   => ')',
+    endif      => 'endif',
     -compiler => 'gcc',
 
     mknoisy => <<'TERM',
@@ -169,7 +172,10 @@ TERM
 
 our %TC_BSD = (
     %TC_POSIX,
-
+    ifneq_start => '.if ',
+    ifneq_middle => ' != ',
+    ifneq_end   => '',
+    endif      => '.endif',
     mknoisy => <<'TERM',
 .if $(NOISY) != 1
 MSG = @echo
@@ -181,6 +187,10 @@ TERM
 );
 
 our %TC_MSVC = (
+    ifneq_start => '!IF ',
+    ifneq_middle => ' != ',
+    ifneq_end   => '',
+    endif      => '!ENDIF',
     -compiler => 'cl',
 
     make => 'nmake',
