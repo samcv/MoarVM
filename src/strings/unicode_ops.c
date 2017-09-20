@@ -527,6 +527,14 @@ MVMint64 MVM_unicode_string_compare(MVMThreadContext *tc, MVMString *a, MVMStrin
     /* From 0 to 2 for primary, secondary, tertiary levels */
     MVMint16   level_a = 0,   level_b = 0;
     MVMint64 skipped_a = 0, skipped_b = 0;
+    int seen_num_a = 0;
+    int seen_num_b = 0;
+    MVMint64 val_a = 0;
+    MVMint64 val_b = 0;
+    MVMint64 iter = 0;
+    MVMint64 mult = 1000000000;
+    MVMint64 has_triggered = 0;
+    int seen_a = 0, seen_b = 0;
     /* This code sets up level_eval_settings based on the collation_mode */
     #define setmodeup(mode, level, Less, Same, More) {\
         if (collation_mode & mode) {\
@@ -576,15 +584,94 @@ MVMint64 MVM_unicode_string_compare(MVMThreadContext *tc, MVMString *a, MVMStrin
     while (MVM_string_ci_has_more(tc, &a_ci) && MVM_string_ci_has_more(tc, &b_ci)) {
         MVMCodepoint cp_a = MVM_string_ci_get_codepoint(tc, &a_ci);
         MVMCodepoint cp_b = MVM_string_ci_get_codepoint(tc, &b_ci);
+        seen_a = 0; seen_b = 0;
         add_to_ring_buffer(tc, &buf_a, cp_a);
         add_to_ring_buffer(tc, &buf_b, cp_b);
-        if (cp_a != cp_b) {
+        if ('0' <= cp_a && cp_a <= '9') {
+            seen_a = 1;
+            seen_num_a++;
+            DEBUG_PRINT(stderr, "seen a '%c'\n", cp_a);
+        }
+        if ('0' <= cp_b && cp_b <= '9') {
+            seen_b = 1;
+            seen_num_b++;
+            DEBUG_PRINT(stderr, "seen b '%c'\n", cp_b);
+        }
+        if (cp_a != cp_b || has_triggered) {
+            if (!has_triggered) {
             compare_by_cp_rtrn = cp_a < cp_b ? -1 :
                                  cp_b < cp_a ?  1 :
                                                 0 ;
-            break;
+                                                has_triggered = 1;
+                                            }
+            if (seen_a || seen_b) {
+                if (!seen_b) {
+                    DEBUG_PRINT(stderr, "b ran out so returning 1\n");
+                    /* b is smaller */
+                    return 1;
+                }
+                if (!seen_a) {
+                    DEBUG_PRINT(stderr, "a ran out so returning -1\n");
+                    /* a is smaller */
+                    return -1;
+                }
+                if (seen_a && seen_b) {
+
+
+                }
+                else {
+                    DEBUG_PRINT(stderr, "breaking cause we have only seen one of seen_a or seen_b\n");
+                    break;
+                }
+            }
+            else {
+                DEBUG_PRINT(stderr, "breaking cause haven't seen seen_a or seen_b\n");
+                iter = 1;
+                break;
+            }
+        }
+        if (seen_num_b && !seen_b)
+            seen_num_b = 0;
+        if (seen_num_a && !seen_a)
+            seen_num_a = 0;
+    }
+    DEBUG_PRINT(stderr, "seen_a %li seen_b %li. num_seen_a %li num_seen_b %li\n", seen_a, seen_b, seen_num_a, seen_num_b);
+    if (seen_a || seen_b) {
+        if (!seen_b) {
+            DEBUG_PRINT(stderr, "b ran out so returning 1\n");
+            /* b is smaller */
+            return 1;
+        }
+        if (!seen_a) {
+            DEBUG_PRINT(stderr, "a ran out so returning -1\n");
+            /* a is smaller */
+            return -1;
+        }
+        /* both have been seen */
+        if (!MVM_string_ci_has_more(tc, &b_ci) && MVM_string_ci_has_more(tc, &a_ci)) {
+            MVMCodepoint cp_a = MVM_string_ci_get_codepoint(tc, &a_ci);
+            add_to_ring_buffer(tc, &buf_a, cp_a);
+            DEBUG_PRINT(stderr, "no more of b\n");
+            if ('0' <= cp_a && cp_a <= '9') {
+                DEBUG_PRINT(stderr, "Returning more cause no more left of b and last of a was a number\n");
+                return 1;
+            }
+        }
+        if (!MVM_string_ci_has_more(tc, &a_ci) && MVM_string_ci_has_more(tc, &b_ci)) {
+            MVMCodepoint cp_b = MVM_string_ci_get_codepoint(tc, &b_ci);
+            add_to_ring_buffer(tc, &buf_b, cp_b);
+            DEBUG_PRINT(stderr, "no more of a\n");
+            if ('0' <= cp_b && cp_b <= '9') {
+                DEBUG_PRINT(stderr, "Returning less cause no more left of a and last of a was b number\n");
+                return -1;
+            }
         }
     }
+    else if (!iter) {
+        DEBUG_PRINT(stderr, "returning by compare_by_cp_rtrn because no seen's\n");
+        return compare_by_cp_rtrn;
+    }
+    DEBUG_PRINT(stderr, "deciding by buffer\n");
     DEBUG_PRINT_RING_BUFFER(tc, &buf_a);
     DEBUG_PRINT_RING_BUFFER(tc, &buf_b);
     ring_buffer_done(tc, &buf_a);
