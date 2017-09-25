@@ -214,6 +214,7 @@ OBJECTS = src/core/callsite@obj@ \
           src/instrument/crossthreadwrite@obj@ \
           src/instrument/line_coverage@obj@ \
           src/platform/sys@obj@ \
+          src/platform/tty_size@obj@ \
           src/moar@obj@ \
           @platform@ \
           @jit_obj@
