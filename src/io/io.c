@@ -1,5 +1,5 @@
 #include "moar.h"
-
+#include "platform/tty_size.h"
 /* Delegatory functions that assert we have a capable handle, then delegate
  * through the IO table to the correct operation. */
 
@@ -37,12 +37,28 @@ MVMint64 MVM_io_close(MVMThreadContext *tc, MVMObject *oshandle) {
     else
         MVM_exception_throw_adhoc(tc, "Cannot close this kind of handle");
 }
+MVMObject * MVM_io_tty_size (MVMThreadContext *tc, MVMObject *oshandle) {
+    MVMObject *result;
+    MVMOSHandle *handle = verify_is_handle(tc, oshandle, "ttysize");
+    MVMint64 *thing = MVM_io_tty_size_platform(tc, handle);
+    result = MVM_repr_alloc_init(tc, MVM_hll_current(tc)->slurpy_array_type);
+    MVMROOT(tc, result, {
+        MVMObject *box_type = MVM_hll_current(tc)->int_box_type;
+        MVMROOT(tc, box_type, {
+            MVMObject *boxed = MVM_repr_box_int(tc, box_type, thing[0]);
+            MVM_repr_push_o(tc, result, boxed);
+            boxed = MVM_repr_box_int(tc, box_type, thing[1]);
+            MVM_repr_push_o(tc, result, boxed);
+        });
+    });
 
+}
 MVMint64 MVM_io_is_tty(MVMThreadContext *tc, MVMObject *oshandle) {
     MVMOSHandle *handle = verify_is_handle(tc, oshandle, "istty");
     /* We need the extra check on is_tty because it is NULL for pipes. */
     if (handle->body.ops->introspection && handle->body.ops->introspection->is_tty) {
         MVMint64 ret;
+        MVM_io_tty_size(tc, oshandle);
         MVMROOT(tc, handle, {
             uv_mutex_t *mutex = acquire_mutex(tc, handle);
             ret = handle->body.ops->introspection->is_tty(tc, handle);
