@@ -8,7 +8,8 @@ platform:
   - x86
 
 install:
-  - '"C:\Program Files\Microsoft SDKs\Windows\v7.1\Bin\SetEnv.cmd" /x64'
+  - SetEnv.cmd
+#  - '"C:\Program Files\Microsoft SDKs\Windows\v7.1\Bin\SetEnv.cmd" /x64'
   - appveyor-retry choco install strawberryperl --version 5.20.1.1 --allow-empty-checksums
   - SET PATH=C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin;%PATH%
   - perl Configure.pl --prefix=%APPVEYOR_BUILD_FOLDER%\buildprefix
@@ -23,9 +24,9 @@ environment:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
 
-branches:
-  only:
-    - master
+#branches:
+#  only:
+#    - master
 
 
 test_script:
