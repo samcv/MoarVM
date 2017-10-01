@@ -8,6 +8,7 @@ platform:
   - x86
 
 install:
+  - chdir C:\
   - dir SetEnv.cmd /s
   - build\findwinsdk.bat
   - 'echo 1 & %WindowsSdkPath%Bin\SetEnv.cmd & echo 2 & "%WindowsSdkPath%Bin\SetEnv.cmd" & echo 3 & dir "%WindowsSdkPath%" & echo 4 & dir "%WindowsSdkPath%Bin"'
