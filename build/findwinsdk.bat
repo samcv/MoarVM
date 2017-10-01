@@ -15,6 +15,7 @@ SET WindowsSdkPath=
 FOR /F "tokens=1,2*" %%i in ('REG QUERY "HKLM\SOFTWARE\Microsoft\Microsoft SDKs\Windows\%WindowsSdkVersion%" /V InstallationFolder') DO (
     IF "%%i"=="InstallationFolder" (
         SET "WindowsSdkPath=%%k"
+        ECHO WindowsSdkPath: %WindowsSdkPath%
     )
 )
 IF "%WindowsSdkPath%"=="" EXIT /B 1
@@ -31,6 +32,7 @@ SET WindowsSdkVersion=
 FOR /F "tokens=1,2*" %%i in ('REG QUERY "%1\SOFTWARE\Microsoft\Microsoft SDKs\Windows" /V "CurrentVersion"') DO (
     IF "%%i"=="CurrentVersion" (
         SET "WindowsSdkVersion=%%k"
+        ECHO WindowsSdkVersion: %WindowsSdkVersion%
     )
 )
 IF "%WindowsSdkVersion%"=="" EXIT /B 1
