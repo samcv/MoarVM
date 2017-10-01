@@ -1,4 +1,4 @@
-@ECHO OFF
+@ECHO ON
 
 IF "%WindowsSdkVersion%"=="" (
   CALL :SetWindowsSdkVersionHelper HKCU > nul 2>&1
