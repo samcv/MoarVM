@@ -186,12 +186,9 @@ static void move_strands(MVMThreadContext *tc, const MVMString *from, MVMuint16 
         num_strands * sizeof(MVMStringStrand));
 }
 
-MVM_STATIC_INLINE int can_fit_into_8bit (MVMGrapheme32 g) {
-    return -128 <= g && g <= 127;
-}
-MVM_STATIC_INLINE int can_fit_into_ascii (MVMGrapheme32 g) {
-    return 0 <= g && g <= 127;
-}
+#define can_fit_into_8bit(g)  (-128 <= g && g <= 127)
+#define can_fit_into_ascii(g) (0 <= g && g <= 127)
+
 /* If a string is currently using 32bit storage, turn it into using
  * 8 bit storage. Doesn't do any checks at all. */
 static void turn_32bit_into_8bit_unchecked(MVMThreadContext *tc, MVMString *str) {
