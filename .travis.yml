@@ -98,6 +98,7 @@ branches:
     - master
     - coverage
     - /smoke-me/
+    - defineis8bit  
 
 notifications:
   irc:
