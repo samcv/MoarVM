@@ -187,6 +187,7 @@ static void move_strands(MVMThreadContext *tc, const MVMString *from, MVMuint16 
 }
 
 #define can_fit_into_8bit(g) ((-128 <= (g) && (g) <= 127))
+#define can_fit_into_8bit_unsafe(g) (!((((g) & 0xffffff80) + 0x80) & (0xffffff80-1)))
 
 MVM_STATIC_INLINE int can_fit_into_ascii (MVMGrapheme32 g) {
     return 0 <= g && g <= 127;
@@ -210,62 +211,78 @@ static void turn_32bit_into_8bit_unchecked(MVMThreadContext *tc, MVMString *str)
  * unallocated. This function will allocate the space for the blob and iterate
  * the supplied grapheme iterator for the length of body.num_graphs */
 static void iterate_gi_into_string(MVMThreadContext *tc, MVMGraphemeIter *gi, MVMString *result) {
-    MVMuint64 i = 0, s;
+    MVMuint64 result_pos = 0, s;
     MVMGrapheme32 g;
-    MVMGrapheme8 *result8 = NULL;
+    MVMGrapheme8   *result8 = NULL;
     MVMGrapheme32 *result32 = NULL;
     MVMStringIndex result_graphs = result->body.num_graphs;
     result->body.storage_type    = MVM_STRING_GRAPHEME_8;
     result8 = result->body.storage.blob_8  = MVM_malloc(result_graphs * sizeof(MVMGrapheme8));
     //fprintf(stderr, "allocated %i bytes\n", result->body.num_graphs);
-    while ((gi->blob_type == MVM_STRING_GRAPHEME_8 || gi->blob_type == MVM_STRING_GRAPHEME_ASCII) && (gi->end - gi->pos + i < result_graphs)) {
-            //fprintf(stderr, "i is %i gi->pos %i active blob %p so %i start %i end %i\n", i, gi->pos, gi->active_blob.blob_8, sizeof(MVMGrapheme8), gi->start, gi->end);
-        fprintf(stderr, "copy %i\n", gi->end - gi->pos);
-        memcpy(
-            result8 + i,
-            gi->active_blob.blob_8 + gi->pos,
-            (gi->end - gi->pos) * sizeof(MVMGrapheme8)
-        );
-        i += gi->end - gi->pos;
-        if (!gi->repetitions && !gi->strands_remaining) {
+    while ((gi->end - gi->pos + result_pos < result_graphs)) {
+            //fprintf(stderr, "i is %i gi->pos %i active blob %p so %i start %i end %i\n", result_pos, gi->pos, gi->active_blob.blob_8, sizeof(MVMGrapheme8), gi->start, gi->end);
+        //fprintf(stderr, "copy %i\n", gi->end - gi->pos);
+        switch (gi->blob_type) {
+            case MVM_STRING_GRAPHEME_8:
+            case MVM_STRING_GRAPHEME_ASCII:
+                memcpy(
+                    result8 + result_pos,
+                    gi->active_blob.blob_8 + gi->pos,
+                    (gi->end - gi->pos) * sizeof(MVMGrapheme8)
+                );
+                result_pos += gi->end - gi->pos;
+                break;
+            case MVM_STRING_GRAPHEME_32: {
+                size_t j;
+                MVMGrapheme32 *active32 = gi->active_blob.blob_32;
+                MVMStringIndex end = gi->end;
+                for (j = gi->pos; j <  end; result_pos++) {
+                    if (!can_fit_into_8bit_unsafe(active32[j])) {
+                        gi->pos = j;
+                        goto BAILING;
+                    }
+                    result8[result_pos] = active32[j++];
+                }
+                break;
+            }
+            default:
+                MVM_exception_throw_adhoc(tc, "Unknown string type encountered in interate_gi_into_string");
+        }
+        if (!gi->repetitions && !gi->strands_remaining)
             break;
-        }
-        else {
-            MVM_string_gi_next_strand(tc, gi);
-        }
+        MVM_string_gi_next_strand(tc, gi);
     }
-    for (; i < result_graphs; i++) {
-        result8[i] = g = MVM_string_gi_get_grapheme(tc, gi);
-        if (!can_fit_into_8bit(g)) {
+    for (; result_pos < result_graphs; result_pos++) {
+        result8[result_pos] = g = MVM_string_gi_get_grapheme(tc, gi);
+        if (!can_fit_into_8bit_unsafe(g)) {
             goto BAILING;
         }
     }
     return;
-    BAILING:
-        if (1) {
-        fprintf(stderr, "can't fit in at i = %i\n", i);
+    BAILING: {
+        //fprintf(stderr, "can't fit in at result_pos = %i\n", result_pos);
         /* If we get here, we saw a codepoint lower than -127 or higher than 127
          * so turn it into a 32 bit string instead */
-        /* Store the old string pointer and previous value of i */
+        /* Store the old string pointer and previous value of result_pos */
         //MVMGrapheme8 *old_ref = result->body.storage.blob_8;
-        MVMuint64 prev_i = i;
+        MVMuint64 prev_i = result_pos;
         /* Set up the string as 32bit now and allocate space for it */
         result->body.storage_type    = MVM_STRING_GRAPHEME_32;
         result32 = result->body.storage.blob_32 = MVM_malloc(result_graphs * sizeof(MVMGrapheme32));
         /* Copy the data so far copied from the 8bit blob since it's faster than
          * setting up the grapheme iterator again */
-        for (i = 0; i < prev_i; i++) {
-            result32[i] = result8[i];
+        for (result_pos = 0; result_pos < prev_i; result_pos++) {
+            result32[result_pos] = result8[result_pos];
         }
         /* Store the grapheme which interupted the sequence. After that we can
          * continue from where we left off using the grapheme iterator */
         result32[prev_i] = g;
         MVM_free(result8);
         result8 = NULL;
-        for (i = prev_i + 1; i < result_graphs; i++) {
-            result32[i] = MVM_string_gi_get_grapheme(tc, gi);
+        for (result_pos = prev_i + 1; result_pos < result_graphs; result_pos++) {
+            result32[result_pos] = MVM_string_gi_get_grapheme(tc, gi);
         }
-        }
+    }
 }
 #define copy_strands_memcpy(BLOB_TYPE, SIZEOF_TYPE, STORAGE_TYPE) { \
     result->body.storage.BLOB_TYPE = MVM_malloc(sizeof(SIZEOF_TYPE) * MVM_string_graphs_nocheck(tc, orig)); \
