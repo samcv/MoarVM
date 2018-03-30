@@ -208,25 +208,31 @@ static void turn_32bit_into_8bit_unchecked(MVMThreadContext *tc, MVMString *str)
 }
 #define dfprintf(...) fprintf (__VA_ARGS__)
 #define dfprintf(...) ;
-static int can_be_8bitstring(MVMThreadContext *tc, MVMString *string) {
-    MVMGraphemeIter gi;
-    MVM_string_gi_init(tc, &gi, string);
+static int can_be_8bitstring(MVMThreadContext *tc, MVMGraphemeIter *gi, MVMStringIndex maxg) {
     int val = 0;
+    MVMStringIndex currg = 0;
+    dfprintf(stderr, "checking length %u\n", maxg);
     while (1) {
-        if (gi.blob_type == MVM_STRING_GRAPHEME_32) {
+        size_t strand_len = gi->end - gi->pos;
+        if (gi->blob_type == MVM_STRING_GRAPHEME_32) {
             int i = 0;
+            size_t togo = strand_len > maxg - currg ? maxg - currg : strand_len;
+            size_t togofull = togo + gi->pos;
             //MVMGrapheme32 *active_blob =
-            for (i = gi.pos; i < gi.end; i++) {
-                val |= (((((gi.active_blob.blob_32[i]) & 0xffffff80) + 0x80) & (0xffffff80-1)));
+            for (i = gi->pos; i  < togofull; i++) {
+                val |= (((((gi->active_blob.blob_32[i]) & 0xffffff80) + 0x80) & (0xffffff80-1)));
             }
             if (val) return 0;
-        }
-        if (MVM_string_gi_has_more(tc, &gi)) {
-            MVM_string_gi_next_strand(tc, &gi);
+            currg += togo;
         }
         else {
+            size_t togo = strand_len > maxg - currg ? maxg - currg : strand_len;
+            currg += togo;
+        }
+        if (maxg == currg || (!gi->strands_remaining && !gi->repetitions)) {
             break;
         }
+        MVM_string_gi_next_strand(tc, gi);
     }
     return 1;
 
@@ -239,11 +245,85 @@ static void iterate_gi_into_string(MVMThreadContext *tc, MVMGraphemeIter *gi, MV
     MVMGrapheme32 g;
     MVMGrapheme8   *result8 = NULL;
     MVMGrapheme32 *result32 = NULL;
+    MVMGraphemeIter gi_copy;
     MVMStringIndex result_graphs = result->body.num_graphs;
+    if (!result_graphs) {
+        return;
+    }
+    //memcpy(&gi_copy, gi, sizeof(MVMGraphemeIter));
+    MVM_string_gi_init(tc, &gi_copy, orig);
+    MVM_string_gi_move_to(tc, &gi_copy, num);
+    if (can_be_8bitstring(tc, gi, result_graphs)) {
+        size_t result_pos = 0;
+        result->body.storage_type    = MVM_STRING_GRAPHEME_8;
+        result8 = result->body.storage.blob_8 =
+            result_graphs ? MVM_malloc(result_graphs * sizeof(MVMGrapheme8)) : NULL;
+        while (1) {
+            if (gi_copy.blob_type == MVM_STRING_GRAPHEME_32) {
+                int i = gi_copy.pos;
+                MVMGrapheme32 *active_blob = gi_copy.active_blob.blob_32;
+                while (i < gi_copy.end && result_pos < result_graphs) {
+                    result8[result_pos++] = active_blob[i++];
+                }
+            }
+            else if (gi_copy.blob_type == MVM_STRING_GRAPHEME_8 || gi_copy.blob_type == MVM_STRING_GRAPHEME_ASCII) {
+                size_t to_copy = gi_copy.end - gi_copy.pos > result_graphs - result_pos ? result_graphs - result_pos : gi_copy.end - gi_copy.pos;
+                //fprintf(stderr, "copy of %i\n", to_copy);
+                memcpy(
+                    result8 + result_pos,
+                    gi_copy.active_blob.blob_8 + gi_copy.pos,
+                    to_copy * sizeof(MVMGrapheme8)
+                );
+                result_pos += to_copy;
+            }
+            else {
+                MVM_exception_throw_adhoc(tc, "string corruption\n");
+            }
+            if (result_pos >= result_graphs || (!gi_copy.strands_remaining && !gi_copy.repetitions)) {
+                break;
+            }
+            MVM_string_gi_next_strand(tc, &gi_copy);
+        }
+        return;
+    }
+    else {
+        size_t result_pos = 0;
+        result->body.storage_type    = MVM_STRING_GRAPHEME_32;
+        result32 = result->body.storage.blob_32 =
+            result_graphs ? MVM_malloc(result_graphs * sizeof(MVMGrapheme32)) : NULL;
+        while (1) {
+            if (gi_copy.blob_type == MVM_STRING_GRAPHEME_8 || gi_copy.blob_type == MVM_STRING_GRAPHEME_ASCII) {
+                int i = gi_copy.pos;
+                MVMGrapheme8 *active_blob = gi_copy.active_blob.blob_8;
+                while (i < gi_copy.end && result_pos < result_graphs) {
+                    result32[result_pos++] = active_blob[i++];
+                }
+            }
+            else if (gi_copy.blob_type == MVM_STRING_GRAPHEME_32) {
+                size_t to_copy = gi_copy.end - gi_copy.pos > result_graphs - result_pos ? result_graphs - result_pos : gi_copy.end - gi_copy.pos;
+                //fprintf(stderr, "copy of %i\n", to_copy);
+                memcpy(
+                    result32 + result_pos,
+                    gi_copy.active_blob.blob_32 + gi_copy.pos,
+                    to_copy * sizeof(MVMGrapheme32)
+                );
+                result_pos += to_copy;
+            }
+            else {
+                MVM_exception_throw_adhoc(tc, "string corruption\n");
+            }
+            if (result_pos >= result_graphs || (!gi_copy.strands_remaining && !gi_copy.repetitions)) {
+                break;
+            }
+            MVM_string_gi_next_strand(tc, &gi_copy);
+        }
+        return;
+
+    }
     result->body.storage_type    = MVM_STRING_GRAPHEME_8;
     result8 = result->body.storage.blob_8 =
         result_graphs ? MVM_malloc(result_graphs * sizeof(MVMGrapheme8)) : NULL;
-    fprintf(stderr, "can be %i\n", can_be_8bitstring(tc, orig));
+    //fprintf(stderr, "can be %i\n", can_be_8bitstring(tc, orig));
     if (!result_graphs) {
         dfprintf(stderr, "no resultgraphs returning empty string\n");
         return;
@@ -300,7 +380,7 @@ static void iterate_gi_into_string(MVMThreadContext *tc, MVMGraphemeIter *gi, MV
         result8[result_pos++] = g;
     }
     //fprintf(stderr, "first section done\n");
-    goto CHECKIT;
+    //goto CHECKIT;
     return;
     /* If we get here, we saw a codepoint lower than -127 or higher than 127
      * so turn it into a 32 bit string instead */
@@ -341,9 +421,10 @@ static void iterate_gi_into_string(MVMThreadContext *tc, MVMGraphemeIter *gi, MV
             dfprintf(stderr, "set result32[%u] = %i\n", result_pos, result32[result_pos]);
         }
         //fprintf(stderr, "complete is done\n");
-        goto CHECKIT;
+        //goto CHECKIT;
         return;
     }
+    return;
     CHECKIT: {
             MVMStringIndex result_graphs = result->body.num_graphs, orig_graphs = orig->body.num_graphs;
             MVMGraphemeIter res_gi, orig_gi;
@@ -436,7 +517,7 @@ static MVMString * collapse_strands(MVMThreadContext *tc, MVMString *orig) {
             }
         });
     }
-if (1 || MVM_DEBUG_STRANDS || MVM_DEBUG_NFG) {
+//if (1 || MVM_DEBUG_STRANDS || MVM_DEBUG_NFG) {
     /*MVMStringIndex result_graphs = result->body.num_graphs, orig_graphs = orig->body.num_graphs;
     MVMGraphemeIter res_gi, orig_gi;
     size_t i = 0;
@@ -452,9 +533,9 @@ if (1 || MVM_DEBUG_STRANDS || MVM_DEBUG_NFG) {
         }
     }
 */
-    if (!MVM_string_equal(tc, result, orig))
+    /*if (!MVM_string_equal(tc, result, orig))
         MVM_exception_throw_adhoc(tc, "result graphs %u and original %u graphs were not eq in collapse_strands", result->body.num_graphs, orig->body.num_graphs);
-}
+}*/
 //#endif
     return result;
 }
