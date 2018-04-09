@@ -76,7 +76,7 @@ static int win32_urandom_init(void) {
     return 1;
 }
 MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
-   if (!HCRYPTPROV) {
+   if (!hCryptProv) {
       int rtrn = win32_urandom_init();
       if (!rtrn) return 0;
    }
@@ -87,17 +87,6 @@ MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
 
 }
 
-#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) \
-   || defined(__APPLE__)
-#include <sys/random.h>
-MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
-
-   getentropy(out, sizeof(MVMint64));
-    /*#include <libstd.h>
-    *out = arc4random();
-    *out <<= 32;
-    *out |= arc4random();
-    return 1;*/
 #else
 MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
    fprintf(stderr, "ERROR NO RANDOM NUMBER GENERATOR\n");
