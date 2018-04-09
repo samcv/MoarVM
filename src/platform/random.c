@@ -46,6 +46,7 @@ typedef BOOL (WINAPI *CRYPTGENRANDOM)(HCRYPTPROV hProv, DWORD dwLen,\
               BYTE *pbBuffer );
 
 static HCRYPTPROV hCryptProv = 0;
+static CRYPTGENRANDOM pCryptGenRandom = NULL;
 static int win32_urandom_init(void) {
     HINSTANCE hAdvAPI32 = NULL;
     CRYPTACQUIRECONTEXTA pCryptAcquireContext = NULL;
