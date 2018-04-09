@@ -33,3 +33,4 @@ void MVM_proc_getrusage(MVMThreadContext *tc, MVMObject *result);
 MVM_PUBLIC char ** MVM_UnicodeToUTF8_argv(const int argc, wchar_t **argv);
 #endif
 
+void MVM_proc_seed_rand(MVMThreadContext *tc);

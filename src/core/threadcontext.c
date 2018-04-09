@@ -52,7 +52,7 @@ MVMThreadContext * MVM_tc_create(MVMThreadContext *parent, MVMInstance *instance
     MVM_callstack_region_init(tc);
 
     /* Initialize random number generator state. */
-    MVM_proc_seed(tc, (MVM_platform_now() / 10000) * MVM_proc_getpid(tc));
+    MVM_proc_seed_rand(tc);
 
     /* Initialize frame sequence numbers */
     tc->next_frame_nr = 0;
