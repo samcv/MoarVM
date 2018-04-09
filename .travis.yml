@@ -76,7 +76,7 @@ script:
   - make -j2 install;
   - cd -- "$NQP_FOLDER";
   - echo "perl Configure.pl --prefix=$MOAR_PREFIX --backends=moar;"
-  - perl Configure.pl --prefix=$MOAR_PREFIX --backends=moar;
+  - perl Configure.pl --prefix=$MOAR_PREFIX --backends=moar --ignore-errors;
   - make
   - make test;
   - cd -- "$MOAR_FOLDER"

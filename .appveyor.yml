@@ -16,7 +16,7 @@ install:
   - nmake install
   - git clone https://github.com/perl6/nqp %APPVEYOR_BUILD_FOLDER%\nqp
   - cd %APPVEYOR_BUILD_FOLDER%\nqp
-  - perl Configure.pl --prefix=%APPVEYOR_BUILD_FOLDER%\buildprefix
+  - perl Configure.pl --ignore-errors --prefix=%APPVEYOR_BUILD_FOLDER%\buildprefix
   - nmake
   - nmake install
 
