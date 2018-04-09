@@ -29,6 +29,7 @@ environment:
 branches:
   only:
     - master
+    - crypt
 
 
 #test_script:
