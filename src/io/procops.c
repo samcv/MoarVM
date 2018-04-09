@@ -1021,12 +1021,10 @@ MVMint64 MVM_proc_getpid(MVMThreadContext *tc) {
     return getpid();
 #endif
 }
-#include <sys/random.h>
 /* Get the process ID of the parent process */
 MVMint64 MVM_proc_getppid(MVMThreadContext *tc) {
     return uv_os_getppid();
 }
-#include <sys/random.h>
 /* Generates a random int64 */
 MVMint64 MVM_proc_rand_i(MVMThreadContext *tc) {
     MVMuint64 result;
