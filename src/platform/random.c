@@ -9,6 +9,8 @@
    #include <sys/syscall.h>
    #if defined(SYS_getrandom)
       #define MVM_use_getrandom 1
+   #else
+      #define MVM_use_urandom 1
    #endif
 #endif
 #if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) \
@@ -86,7 +88,19 @@ MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
    return 1;
 
 }
-
+#elif defined(MVM_use_urandom)
+#include <unistd.h>
+MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
+    int fd = open("/dev/urandom", O_RDONLY);
+    size_t size = sizeof(MVMint64);
+    int n = 0;
+    if (fd < 0)
+        return 0;
+    n = read(fd, out, sizeof(MVMint64));
+    if (n <= 0)
+        return 0;
+    return 1;
+}
 #else
 MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
    fprintf(stderr, "ERROR NO RANDOM NUMBER GENERATOR\n");
