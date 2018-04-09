@@ -39,6 +39,12 @@
 #elif defined(_WIN32)
 #include <windows.h>
 #include <wincrypt.h>
+typedef BOOL (WINAPI *CRYPTACQUIRECONTEXTA)(HCRYPTPROV *phProv,\
+              LPCSTR pszContainer, LPCSTR pszProvider, DWORD dwProvType,\
+              DWORD dwFlags );
+typedef BOOL (WINAPI *CRYPTGENRANDOM)(HCRYPTPROV hProv, DWORD dwLen,\
+              BYTE *pbBuffer );
+
 static HCRYPTPROV hCryptProv = 0;
 static int win32_urandom_init(void) {
     HINSTANCE hAdvAPI32 = NULL;
