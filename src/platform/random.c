@@ -80,7 +80,7 @@ MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
       int rtrn = win32_urandom_init();
       if (!rtrn) return 0;
    }
-   if (!pCryptGenRandom(provider, sizeof(MVMint64), out)) {
+   if (!pCryptGenRandom(hCryptProv, sizeof(MVMint64), (BYTE*)out)) {
       return 0;
    }
    return 1;
