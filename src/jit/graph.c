@@ -296,6 +296,7 @@ static void * op_to_func(MVMThreadContext *tc, MVMint16 opcode) {
     case MVM_OP_acos_n: return acos;
     case MVM_OP_atan_n: return atan;
     case MVM_OP_atan2_n: return atan2;
+    case MVM_OP_floor_n: return floor;
     case MVM_OP_pow_I: return MVM_bigint_pow;
     case MVM_OP_rand_I: return MVM_bigint_rand;
     case MVM_OP_pow_n: return pow;
@@ -2873,6 +2874,7 @@ static MVMint32 consume_ins(MVMThreadContext *tc, MVMJitGraph *jg,
         jg_append_call_c(tc, jg, op_to_func(tc, op), 2, args, MVM_JIT_RV_PTR, dst);
         break;
     }
+    case MVM_OP_floor_n:
     case MVM_OP_sqrt_n:
     case MVM_OP_sin_n:
     case MVM_OP_cos_n:
