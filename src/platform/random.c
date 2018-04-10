@@ -1,41 +1,60 @@
-#include "moar.h"
-#include "platform/random.h"
+/* OpenBSD getentropy starting 5.6
+ * Linux added getrandom to kernel in 3.17
+ * FreeBSD __FreeBSD_version with revision 331279 (version identifier: 1200061)
+ * NetBSD __NetBSD_Version__ <sys/param.h> may not include it
+ * Solaris since 11.3
+ * OSX since 10.12
+*/
 /* Platform specific random numbers. Returns 1 if it succeeded and otherwise 0
  * Does not block */
 #if defined(___sun)
-   #define MVM_use_getrandom 1
+   #define MVM_random_use_getrandom 1
 #endif
 #if defined(__linux__)
    #include <sys/syscall.h>
    #if defined(SYS_getrandom)
-      #define MVM_use_getrandom 1
+/* With glibc you are supposed to declare _GNU_SOURCE to use the
+ * syscall function */
+      #define _GNU_SOURCE
+      #include <unistd.h>
+      #define MVM_random_use_getrandom 1
    #else
-      #define MVM_use_urandom 1
+      #define MVM_random_use_urandom 1
    #endif
 #endif
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) \
-   || defined(__APPLE__)
-   #define MVM_use_getentropy 1
+#if defined(__FreeBSD_)
+   #include <osreldate.h>
+   #if __FreeBSD_version >= 1200061
+      #define MVM_random_use_getentropy
+   #endif
 #endif
+#if defined(__OpenBSD__)
+   #include <sys/param.h>
+   #if OpenBSD >= 201301
+      #define MVM_random_use_getentropy
+   #endif
+#endif
+#if defined(__APPLE__) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
+   #define MVM_random_use_getentropy 1
+#endif
+#include "moar.h"
 
-#if defined(MVM_use_getrandom)
-
-   #include <sys/random.h>
+#if defined(MVM_random_use_getrandom)
+/* getrandom was added to glibc much later than it was added to the kernel. Since
+ * we detect the presence of the system call to decide whether to use this,
+ * just use the syscall instead since the wrapper is not guaranteed to exist.*/
+#define GRND_NONBLOCK 0x01
+/*#define _GNU_SOURCE
+#include <sys/syscall.h>
+#include <linux/unistd.h>*/
    MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
-       fprintf(stderr, "in here\n");
-       return getrandom(out, sizeof(MVMint64), GRND_NONBLOCK) == -1 ? 0 : 1;
+      return syscall(SYS_getrandom, out, sizeof(MVMint64), GRND_NONBLOCK) == -1 ? 0 : 1;
    }
 
-#elif defined(MVM_use_getentropy)
+#elif defined(MVM_random_use_getentropy)
    #include <sys/random.h>
    MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
-
       return getentropy(out, sizeof(MVMint64)) < 0 ? 0 : 1;
-       /*#include <libstd.h>
-       *out = arc4random();
-       *out <<= 32;
-       *out |= arc4random();
-       return 1;*/
    }
 
 #elif defined(_WIN32)
@@ -86,9 +105,8 @@ MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
       return 0;
    }
    return 1;
-
 }
-#elif defined(MVM_use_urandom)
+#else
 #include <unistd.h>
 MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
     int fd = open("/dev/urandom", O_RDONLY);
@@ -97,13 +115,9 @@ MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
     if (fd < 0)
         return 0;
     n = read(fd, out, sizeof(MVMint64));
+    close(fd);
     if (n <= 0)
         return 0;
     return 1;
-}
-#else
-MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
-   fprintf(stderr, "ERROR NO RANDOM NUMBER GENERATOR\n");
-   return 0;
 }
 #endif
