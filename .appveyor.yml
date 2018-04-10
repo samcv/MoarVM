@@ -19,6 +19,7 @@ install:
   - perl Configure.pl --ignore-errors --prefix=%APPVEYOR_BUILD_FOLDER%\buildprefix
   - nmake
   - nmake install
+  - nmake test
 
 environment:
   matrix:
