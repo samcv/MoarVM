@@ -68,9 +68,13 @@
                   DWORD dwFlags );
     typedef BOOL (WINAPI *CRYPTGENRANDOM)(HCRYPTPROV hProv, DWORD dwLen,\
                   BYTE *pbBuffer );
+    /* This is needed to so pCryptGenRandom() can be called. */
+    static CRYPTGENRANDOM pCryptGenRandom = NULL;
+
     static int win32_urandom_init(void) {
         HINSTANCE hAdvAPI32 = NULL;
-
+        /* This is needed to so pCryptAcquireContext() can be called. */
+        CRYPTACQUIRECONTEXTA pCryptAcquireContext = NULL
         /* Get Module Handle to CryptoAPI */
         hAdvAPI32 = GetModuleHandle("advapi32.dll");
         if(hAdvAPI32 == NULL) return 0;
