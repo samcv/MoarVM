@@ -58,35 +58,22 @@
     }
 
 #elif defined(_WIN32)
-    /* The Windows random functions are adapted from those in CPython */
     #include <windows.h>
     #include <wincrypt.h>
-    typedef BOOL (WINAPI *CRYPTACQUIRECONTEXTA)(HCRYPTPROV *phProv,\
-                  LPCSTR pszContainer, LPCSTR pszProvider, DWORD dwProvType,\
-                  DWORD dwFlags );
-    typedef BOOL (WINAPI *CRYPTGENRANDOM)(HCRYPTPROV hProv, DWORD dwLen,\
-                  BYTE *pbBuffer );
-
     static HCRYPTPROV hCryptContext = 0;
-    static CRYPTGENRANDOM pCryptGenRandom = NULL;
     static int win32_urandom_init(void) {
         HINSTANCE hAdvAPI32 = NULL;
-        CRYPTACQUIRECONTEXTA pCryptAcquireContext = NULL;
 
         /* Get Module Handle to CryptoAPI */
         hAdvAPI32 = GetModuleHandle("advapi32.dll");
         if(hAdvAPI32 == NULL) return 0;
-        /* Obtain pointers to the CryptoAPI functions. This will fail on some early
-           versions of Win95. */
-        pCryptAcquireContext =
-            (CRYPTACQUIRECONTEXTA)GetProcAddress(hAdvAPI32, "CryptAcquireContextA");
-        if (pCryptAcquireContext == NULL)
+        /* Check the pointers to the CryptoAPI functions. These shouldn't fail
+         * but makes sure we won't have problems getting the context or getting
+         * random. */
+        if (!GetProcAddress(hAdvAPI32, "CryptAcquireContextA")
+        ||  !GetProcAddress(hAdvAPI32, "CryptGenRandom")) {
             return 0;
-
-        pCryptGenRandom = (CRYPTGENRANDOM)GetProcAddress(hAdvAPI32, "CryptGenRandom");
-        if (pCryptGenRandom == NULL)
-            return 0;
-
+        }
         /* Get the pCrypt Context */
         if (!pCryptAcquireContext(&hCryptContext, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
             return 0;
