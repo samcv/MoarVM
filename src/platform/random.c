@@ -22,7 +22,7 @@
       #define MVM_random_use_urandom 1
    #endif
 #endif
-#if defined(__FreeBSD_)
+#if defined(__FreeBSD__)
    #include <osreldate.h>
    #if __FreeBSD_version >= 1200061
       #define MVM_random_use_getentropy
