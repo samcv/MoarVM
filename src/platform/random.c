@@ -1,7 +1,8 @@
 /* OpenBSD getentropy starting 5.6
- * Linux added getrandom to kernel in 3.17
+ * Linux added getrandom to kernel in 3.17 WORKS
  * FreeBSD __FreeBSD_version with revision 331279 (version identifier: 1200061)  Wed Mar 21, 2018
  * https://svnweb.freebsd.org/base?view=revision&revision=r331279
+ * FreeBSD Works
  * NetBSD __NetBSD_Version__ <sys/param.h> may not include it
  * Solaris since 11.3
  * OSX since 10.12

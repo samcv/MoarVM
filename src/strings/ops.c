@@ -2898,7 +2898,8 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
     MVMuint32 graphs_remaining = MVM_string_graphs(tc, s);
 
     /* Initialize hash state. */
-    MVMuint32 hashv = 0xfeedbeef;
+    MVMuint32 hashv = tc->instance->hashSecret;
+    //MVMuint32 hashv = 0xfeedbeef;
     MVMuint32 _hj_i, _hj_j;
     _hj_i = _hj_j = 0x9e3779b9;
 
