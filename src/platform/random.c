@@ -105,15 +105,18 @@
     #include <unistd.h>
     MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
         int fd = open("/dev/urandom", O_RDONLY);
-        size_t size = sizeof(MVMint64);
-        int n = 0;
+        ssize_t num_read = 0;
         fprintf(stderr, "FALLBACK\n");
-        if (fd < 0)
-            return 0;
-        n = read(fd, out, size);
-        close(fd);
-        if (n <= 0)
-            return 0;
+        if (fd < 0 || (num_read = read(fd, out, size) <= 0)) {
+            if (fd) close(fd);
+            #if defined(BSD)
+                #include <stdlib.h>
+                arc4random_buf(out, size);
+                return 1;
+            #else
+                return 0;
+            #endif
+        }
         return 1;
     }
 #endif
