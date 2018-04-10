@@ -6,6 +6,8 @@
  * NetBSD __NetBSD_Version__ <sys/param.h> may not include it
  * Solaris since 11.3
  * OSX since 10.12
+ * AIX is a unix but has no arc4random, does have /dev/urandom
+ * All BSD's should support arc4random
 */
 /* Platform specific random numbers. Returns 1 if it succeeded and otherwise 0
  * Does not block. Designed for getting small amounts of random data at a time */
@@ -61,6 +63,11 @@
     #include <windows.h>
     #include <wincrypt.h>
     static HCRYPTPROV hCryptContext = 0;
+    typedef BOOL (WINAPI *CRYPTACQUIRECONTEXTA)(HCRYPTPROV *phProv,\
+                  LPCSTR pszContainer, LPCSTR pszProvider, DWORD dwProvType,\
+                  DWORD dwFlags );
+    typedef BOOL (WINAPI *CRYPTGENRANDOM)(HCRYPTPROV hProv, DWORD dwLen,\
+                  BYTE *pbBuffer );
     static int win32_urandom_init(void) {
         HINSTANCE hAdvAPI32 = NULL;
 
