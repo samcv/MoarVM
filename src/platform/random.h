@@ -1,1 +1,1 @@
-MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out);
+MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size);

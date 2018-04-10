@@ -1021,36 +1021,27 @@ MVMint64 MVM_proc_getpid(MVMThreadContext *tc) {
     return getpid();
 #endif
 }
+
 /* Get the process ID of the parent process */
 MVMint64 MVM_proc_getppid(MVMThreadContext *tc) {
     return uv_os_getppid();
 }
-/* Generates a random int64 */
+
+/* generates a random int64 */
 MVMint64 MVM_proc_rand_i(MVMThreadContext *tc) {
-    MVMuint64 result;
-    result = tinymt64_generate_uint64(tc->rand_state);
-    //getrandom(&result, sizeof(MVMuint64), 0);
+    MVMuint64 result = tinymt64_generate_uint64(tc->rand_state);
     return *(MVMint64 *)&result;
 }
 
-/* Generates a number between 0 and 1 */
+/* generates a number between 0 and 1 */
 MVMnum64 MVM_proc_rand_n(MVMThreadContext *tc) {
     return tinymt64_generate_double(tc->rand_state);
 }
 
 MVMnum64 MVM_proc_randscale_n(MVMThreadContext *tc, MVMnum64 scale) {
-    return MVM_proc_rand_n(tc) * scale;
+    return tinymt64_generate_double(tc->rand_state) * scale;
 }
 
-void MVM_proc_seed_rand(MVMThreadContext *tc) {
-    MVMint64 getRandom = 0;
-    int i;
-    #include "platform/random.h"
-    i = MVM_random64(tc, &getRandom);
-    fprintf(stderr, "got %i from random64 number: %"PRIi64"\n", i, getRandom);
-    getRandom ^= (MVM_platform_now() / 10000) * MVM_proc_getpid(tc);
-    MVM_proc_seed(tc, getRandom);
-}
 /* seed random number generator */
 void MVM_proc_seed(MVMThreadContext *tc, MVMint64 seed) {
     /* Seed our one, plus the normal C srand for libtommath. */
