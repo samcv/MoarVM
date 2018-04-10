@@ -1,6 +1,7 @@
 /* OpenBSD getentropy starting 5.6
  * Linux added getrandom to kernel in 3.17
- * FreeBSD __FreeBSD_version with revision 331279 (version identifier: 1200061)
+ * FreeBSD __FreeBSD_version with revision 331279 (version identifier: 1200061)  Wed Mar 21, 2018
+ * https://svnweb.freebsd.org/base?view=revision&revision=r331279
  * NetBSD __NetBSD_Version__ <sys/param.h> may not include it
  * Solaris since 11.3
  * OSX since 10.12
@@ -101,7 +102,7 @@ MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
       int rtrn = win32_urandom_init();
       if (!rtrn) return 0;
    }
-   if (!pCryptGenRandom(hCryptProv, sizeof(MVMint64), (BYTE*)out)) {
+   if (!pCryptGenRandom(hCryptProv, (DWORD)sizeof(MVMint64), (BYTE*)out)) {
       return 0;
    }
    return 1;
@@ -112,6 +113,7 @@ MVMint32 MVM_random64 (MVMThreadContext *tc, MVMuint64 *out) {
     int fd = open("/dev/urandom", O_RDONLY);
     size_t size = sizeof(MVMint64);
     int n = 0;
+    fprintf(stderr, "FALLBACK\n");
     if (fd < 0)
         return 0;
     n = read(fd, out, sizeof(MVMint64));
