@@ -17,10 +17,10 @@
     #if defined(SYS_getrandom)
     /* With glibc you are supposed to declare _GNU_SOURCE to use the
      * syscall function */
-       #define _GNU_SOURCE
-       #define GRND_NONBLOCK 0x01
-       #include <unistd.h>
-       #define MVM_random_use_getrandom 1
+        #define _GNU_SOURCE
+        #define GRND_NONBLOCK 0x01
+        #include <unistd.h>
+        #define MVM_random_use_getrandom 1
     #else
         #define MVM_random_use_urandom 1
     #endif
@@ -73,11 +73,9 @@
         HINSTANCE hAdvAPI32 = NULL;
         CRYPTACQUIRECONTEXTA pCryptAcquireContext = NULL;
 
-        /* Obtain handle to the DLL containing CryptoAPI. This should not fail. */
+        /* Get Module Handle to CryptoAPI */
         hAdvAPI32 = GetModuleHandle("advapi32.dll");
-        if(hAdvAPI32 == NULL)
-            return 0;
-
+        if(hAdvAPI32 == NULL) return 0;
         /* Obtain pointers to the CryptoAPI functions. This will fail on some early
            versions of Win95. */
         pCryptAcquireContext =
