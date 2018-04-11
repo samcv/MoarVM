@@ -43,9 +43,15 @@
     #endif
 #endif
 /* MacOS has had getentropy() since 10.12 */
-#if defined(__APPLE__) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
-    #include <sys/random.h>
-    #define MVM_random_use_getentropy 1
+#if defined(__APPLE__)
+    #if !defined(MAC_OS_X_VERSION_10_12)
+        #define MAC_OS_X_VERSION_10_12 1012
+    #endif
+    //#include <AvailabilityMacros.h>
+    #if __MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_12
+        #include <sys/random.h>
+        #define MVM_random_use_getentropy 1
+    #endif
 #endif
 /* Other info:
  * NetBSD: I have not found evidence it has getentropy() or getrandom()
