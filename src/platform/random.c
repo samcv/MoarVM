@@ -1,6 +1,6 @@
 /* Get random numbers from OS. Returns 1 if it succeeded and otherwise 0
  * Does not block. Designed for getting small amounts of random data at a time */
-
+#include <stddef.h>
 /* Solaris has both getrandom and getentropy. We use getrandom since getentropy
  * can block. Solaris has had getrandom() and getentropy() since 11.3 */
 #if defined(__sun)
