@@ -11,8 +11,15 @@
 */
 /* Platform specific random numbers. Returns 1 if it succeeded and otherwise 0
  * Does not block. Designed for getting small amounts of random data at a time */
-#if defined(___sun)
-    #define MVM_random_use_getrandom 1
+
+/* Solaris has both getrandom and getentropy. We use getrandom since getentropy
+ * can block */
+#if defined(__sun)
+    #include <sys/random.h>
+    /* On solaris, _GRND_ENTROPY is defined if getentropy/getrandom are available */
+    #if defined(_GRND_ENTROPY)
+        #define MVM_random_use_getrandom 1
+    #endif
 #endif
 #if defined(__linux__)
     #include <sys/syscall.h>
@@ -22,7 +29,7 @@
         #define _GNU_SOURCE
         #define GRND_NONBLOCK 0x01
         #include <unistd.h>
-        #define MVM_random_use_getrandom 1
+        #define MVM_random_use_getrandom_syscall 1
     #else
         #define MVM_random_use_urandom 1
     #endif
@@ -30,9 +37,11 @@
 #if defined(__FreeBSD__)
     #include <osreldate.h>
     #if __FreeBSD_version >= 1200061
-        #define MVM_random_use_getentropy
+        #include <sys/random.h>
+        #define MVM_random_use_getrandom
     #endif
 #endif
+/* OpenBSD's getentropy never blocks and always succeeds. */
 #if defined(__OpenBSD__)
     #include <sys/param.h>
     #if OpenBSD >= 201301
@@ -45,12 +54,18 @@
 
 #include "moar.h"
 
-#if defined(MVM_random_use_getrandom)
-/* getrandom was added to glibc much later than it was added to the kernel. Since
+#if defined(MVM_random_use_getrandom_syscall)
+/* getrandom() was added to glibc much later than it was added to the kernel. Since
  * we detect the presence of the system call to decide whether to use this,
  * just use the syscall instead since the wrapper is not guaranteed to exist.*/
     MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
         return syscall(SYS_getrandom, out, size, GRND_NONBLOCK) <= 0 ? 0 : 1;
+    }
+#elif defined(MVM_random_use_getrandom)
+    /* Call the getrandom() wrapper in Solaris and FreeBSD since they were
+     * added at the same time as getentropy() and this allows us to avoid blocking. */
+    MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
+        return getrandom(out, size, GRND_NONBLOCK) <= 0 ? 0 : 1;
     }
 
 #elif defined(MVM_random_use_getentropy)
