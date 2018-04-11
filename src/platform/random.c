@@ -44,6 +44,8 @@
 #endif
 /* MacOS has had getentropy() since 10.12 */
 #if defined(__APPLE__)
+    #include <AvailabilityMacros.h>
+    #include <Availability.h>
     #if !defined(MAC_OS_X_VERSION_10_12)
         #define MAC_OS_X_VERSION_10_12 1012
     #endif
@@ -125,7 +127,11 @@
     MVMint32 MVM_getrandom (MVMThreadContext *tc, void *out, size_t size) {
         int fd = open("/dev/urandom", O_RDONLY);
         ssize_t num_read = 0;
-        fprintf(stderr, "FALLBACK\n");
+        #if defined(__APPLE__)
+            fprintf(stderr, "FALLBACK %i\n", __MAC_OS_X_VERSION_MAX_ALLOWED);
+        #else
+            fprintf(stderr, "FALLBACK\n");
+        #endif
         if (fd < 0 || (num_read = read(fd, out, size) <= 0)) {
             if (fd) close(fd);
             #if defined(BSD)
