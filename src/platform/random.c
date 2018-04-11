@@ -49,6 +49,7 @@
     #endif
 #endif
 #if defined(__APPLE__) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
+    #include <sys/random.h>
     #define MVM_random_use_getentropy 1
 #endif
 
@@ -58,19 +59,18 @@
 /* getrandom() was added to glibc much later than it was added to the kernel. Since
  * we detect the presence of the system call to decide whether to use this,
  * just use the syscall instead since the wrapper is not guaranteed to exist.*/
-    MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
+    MVMint32 MVM_getrandom (MVMThreadContext *tc, void *out, size_t size) {
         return syscall(SYS_getrandom, out, size, GRND_NONBLOCK) <= 0 ? 0 : 1;
     }
 #elif defined(MVM_random_use_getrandom)
     /* Call the getrandom() wrapper in Solaris and FreeBSD since they were
      * added at the same time as getentropy() and this allows us to avoid blocking. */
-    MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
+    MVMint32 MVM_getrandom (MVMThreadContext *tc, void *out, size_t size) {
         return getrandom(out, size, GRND_NONBLOCK) <= 0 ? 0 : 1;
     }
 
 #elif defined(MVM_random_use_getentropy)
-    #include <sys/random.h>
-    MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
+    MVMint32 MVM_getrandom (MVMThreadContext *tc, void *out, size_t size) {
         return getentropy(out, size) < 0 ? 0 : 1;
     }
 
