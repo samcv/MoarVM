@@ -76,7 +76,6 @@
 #elif defined(_WIN32)
     #include <windows.h>
     #include <wincrypt.h>
-    static HCRYPTPROV hCryptContext = 0;
     typedef BOOL (WINAPI *CRYPTACQUIRECONTEXTA)(HCRYPTPROV *phProv,\
                   LPCSTR pszContainer, LPCSTR pszProvider, DWORD dwProvType,\
                   DWORD dwFlags );
@@ -84,14 +83,14 @@
                   BYTE *pbBuffer );
     /* This is needed to so pCryptGenRandom() can be called. */
     static CRYPTGENRANDOM pCryptGenRandom = NULL;
-
+    static HCRYPTPROV       hCryptContext = 0;
     static int win32_urandom_init(void) {
         HINSTANCE hAdvAPI32 = NULL;
         /* This is needed to so pCryptAcquireContext() can be called. */
-        CRYPTACQUIRECONTEXTA pCryptAcquireContext = NULL
+        CRYPTACQUIRECONTEXTA pCryptAcquireContext = NULL;
         /* Get Module Handle to CryptoAPI */
         hAdvAPI32 = GetModuleHandle("advapi32.dll");
-        if(hAdvAPI32 == NULL) return 0;
+        if (hAdvAPI32 == NULL) return 0;
         /* Check the pointers to the CryptoAPI functions. These shouldn't fail
          * but makes sure we won't have problems getting the context or getting
          * random. */
