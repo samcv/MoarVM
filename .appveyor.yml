@@ -16,10 +16,9 @@ install:
   - nmake install
   - git clone https://github.com/perl6/nqp %APPVEYOR_BUILD_FOLDER%\nqp
   - cd %APPVEYOR_BUILD_FOLDER%\nqp
-  - perl Configure.pl --ignore-errors --prefix=%APPVEYOR_BUILD_FOLDER%\buildprefix
+  - perl Configure.pl --prefix=%APPVEYOR_BUILD_FOLDER%\buildprefix
   - nmake
   - nmake install
-  - nqp t/nqp/108-vmhash.t
 
 environment:
   matrix:
@@ -30,7 +29,6 @@ environment:
 branches:
   only:
     - master
-    - crypt
 
 
 #test_script:
