@@ -1,19 +1,8 @@
-/* OpenBSD getentropy starting 5.6
- * Linux added getrandom to kernel in 3.17 WORKS
- * FreeBSD __FreeBSD_version with revision 331279 (version identifier: 1200061)  Wed Mar 21, 2018
- * https://svnweb.freebsd.org/base?view=revision&revision=r331279
- * FreeBSD Works
- * NetBSD __NetBSD_Version__ <sys/param.h> may not include it
- * Solaris since 11.3
- * OSX since 10.12
- * AIX is a unix but has no arc4random, does have /dev/urandom
- * All BSD's should support arc4random
-*/
-/* Platform specific random numbers. Returns 1 if it succeeded and otherwise 0
+/* Get random numbers from OS. Returns 1 if it succeeded and otherwise 0
  * Does not block. Designed for getting small amounts of random data at a time */
 
 /* Solaris has both getrandom and getentropy. We use getrandom since getentropy
- * can block */
+ * can block. Solaris has had getrandom() and getentropy() since 11.3 */
 #if defined(__sun)
     #include <sys/random.h>
     /* On solaris, _GRND_ENTROPY is defined if getentropy/getrandom are available */
@@ -21,6 +10,7 @@
         #define MVM_random_use_getrandom 1
     #endif
 #endif
+/* Linux added getrandom to kernel in 3.17 */
 #if defined(__linux__)
     #include <sys/syscall.h>
     #if defined(SYS_getrandom)
@@ -34,6 +24,9 @@
         #define MVM_random_use_urandom 1
     #endif
 #endif
+/* FreeBSD added it with SVN revision 331279 Wed Mar 21, 2018
+ * This coorasponds to __FreeBSD_version version identifier: 1200061.
+ * https://svnweb.freebsd.org/base?view=revision&revision=r331279 */
 #if defined(__FreeBSD__)
     #include <osreldate.h>
     #if __FreeBSD_version >= 1200061
@@ -41,18 +34,24 @@
         #define MVM_random_use_getrandom
     #endif
 #endif
-/* OpenBSD's getentropy never blocks and always succeeds. */
+/* OpenBSD's getentropy never blocks and always succeeds. OpenBSD has had
+ * getentropy() since 5.6 */
 #if defined(__OpenBSD__)
     #include <sys/param.h>
     #if OpenBSD >= 201301
         #define MVM_random_use_getentropy
     #endif
 #endif
+/* MacOS has had getentropy() since 10.12 */
 #if defined(__APPLE__) && MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
     #include <sys/random.h>
     #define MVM_random_use_getentropy 1
 #endif
-
+/* Other info:
+ * NetBSD: I have not found evidence it has getentropy() or getrandom()
+ *   Note: Uses __NetBSD_Version__ included from file <sys/param.h>.
+ * All BSD's should support arc4random
+ * AIX is a unix but has no arc4random, does have /dev/urandom */
 #include "moar.h"
 
 #if defined(MVM_random_use_getrandom_syscall)
@@ -106,7 +105,7 @@
 
         return 1;
     }
-    MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
+    MVMint32 MVM_getrandom (MVMThreadContext *tc, void *out, size_t size) {
         if (!hCryptContext) {
             int rtrn = win32_urandom_init();
             if (!rtrn) return 0;
@@ -118,7 +117,7 @@
     }
 #else
     #include <unistd.h>
-    MVMint32 MVM_getrandom (MVMThreadContext *tc, char *out, size_t size) {
+    MVMint32 MVM_getrandom (MVMThreadContext *tc, void *out, size_t size) {
         int fd = open("/dev/urandom", O_RDONLY);
         ssize_t num_read = 0;
         fprintf(stderr, "FALLBACK\n");
