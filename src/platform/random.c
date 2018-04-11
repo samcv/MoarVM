@@ -47,7 +47,7 @@
     #include <AvailabilityMacros.h>
     #include <Availability.h>
     #if !defined(MAC_OS_X_VERSION_10_12)
-        #define MAC_OS_X_VERSION_10_12 1012
+        #define MAC_OS_X_VERSION_10_12 101200
     #endif
     //#include <AvailabilityMacros.h>
     #if __MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_12
