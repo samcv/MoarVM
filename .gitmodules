@@ -16,3 +16,6 @@
 [submodule "3rdparty/cmp"]
 	path = 3rdparty/cmp
 	url = https://github.com/MoarVM/cmp.git
+[submodule "3rdparty/highwayhash"]
+	path = 3rdparty/highwayhash
+	url = https://github.com/google/highwayhash.git

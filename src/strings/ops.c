@@ -2887,7 +2887,34 @@ typedef union {
     MVMint32 graphs[3];
     unsigned char bytes[12];
 } MVMJenHashGraphemeView;
+#include "../3rdparty/highwayhash/c/highwayhash.h"
 void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
+    uint64_t key[4] = { 2,2,2,2 };
+    MVMuint64 hash;
+    switch (s->body.storage_type) {
+        //case MVM_STRING_GRAPHEME_8:
+        //case MVM_STRING_GRAPHEME_ASCII: {
+        //}
+        case MVM_STRING_GRAPHEME_32:
+            hash = HighwayHash64((const uint8_t *)s->body.storage.blob_32, MVM_string_graphs_nocheck(tc, s)*sizeof(MVMGrapheme32), key);
+            break;
+        default: {
+            HighwayHashCat hhCatState;
+            MVMGraphemeIter gi;
+            MVM_string_gi_init(tc, &gi, s);
+            HighwayHashCatStart(key, &hhCatState);
+            while (MVM_string_gi_has_more(tc, &gi)) {
+                MVMGrapheme32 g = MVM_string_gi_get_grapheme(tc, &gi);
+                HighwayHashCatAppend((const uint8_t *)&g, sizeof(MVMGrapheme32), &hhCatState);
+            }
+            hash = HighwayHashCatFinish64(&hhCatState);
+            break;
+        }
+    }
+    //fprintf(stderr, "%"PRIu64"\n", hash);
+    s->body.cached_hash_code = hash;
+}
+void MVM_string_compute_hash_code2(MVMThreadContext *tc, MVMString *s) {
     /* The hash algorithm works in bytes. Since we can represent strings in a
      * number of ways, and we want consistent hashing, then we'll read the
      * strings using the grapheme iterator in groups of 3, using 32-bit ints
