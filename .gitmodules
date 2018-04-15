@@ -19,3 +19,6 @@
 [submodule "3rdparty/highwayhash"]
 	path = 3rdparty/highwayhash
 	url = https://github.com/google/highwayhash.git
+[submodule "3rdparty/siphash-c"]
+	path = 3rdparty/siphash-c
+	url = https://github.com/emboss/siphash-c.git

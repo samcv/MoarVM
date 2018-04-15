@@ -2884,11 +2884,98 @@ MVMString * MVM_string_chr(MVMThreadContext *tc, MVMint64 cp) {
  * cache field of the string. Hashing code is derived from the Jenkins hash
  * implementation in uthash.h. */
 typedef union {
-    MVMint32 graphs[3];
-    unsigned char bytes[12];
+    MVMint32 graphs[2];
+    uint8_t bytes[16];
 } MVMJenHashGraphemeView;
-#include "../3rdparty/highwayhash/c/highwayhash.h"
 void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
+#include "../3rdparty/csiphash/csiphash.h"
+    const char key[16] = { 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2 };
+    MVMuint64 hash = 0, hasha = 0;
+    uint64_t su;
+    switch (s->body.storage_type) {
+        //case MVM_STRING_GRAPHEME_8:
+        //case MVM_STRING_GRAPHEME_ASCII: {
+        //}
+        case MVM_STRING_GRAPHEME_32: {
+            hash = siphash24(
+                (uint8_t *)s->body.storage.blob_32,
+                MVM_string_graphs_nocheck(tc, s) * (sizeof(MVMGrapheme32)/sizeof(uint8_t)),
+                key);
+            break;
+        }
+        default: {
+            siphash sh;
+            MVMGraphemeIter gi;
+            size_t outlen = MVM_string_graphs_nocheck(tc, s);
+            size_t outleft = outlen;
+            size_t i;
+            MVMJenHashGraphemeView gv;
+            siphashinit(outlen*sizeof(MVMGrapheme32), key, &sh);
+            MVM_string_gi_init(tc, &gi, s);
+            for (i = 0; i + 1 < outlen; i += 2) {
+                MVMGrapheme32 g1, g2;
+                gv.graphs[0] = MVM_string_gi_get_grapheme(tc, &gi);
+                gv.graphs[1] = MVM_string_gi_get_grapheme(tc, &gi);
+                siphashadd64bits(&sh, gv.bytes);
+                outleft -= 2;
+            }
+            if (i < outlen) {
+                gv.graphs[0] = MVM_string_gi_get_grapheme(tc, &gi);
+                outleft -= 1;
+                hash = siphashfinish(&sh, gv.bytes, sizeof(MVMGrapheme32));
+                //i++;
+            }
+            else {
+                hash = siphashfinish(&sh, NULL, 0);
+            }
+            //hash = siphashfinish(&sh, gv.bytes, i < outlen ? sizeof(MVMGrapheme32) : 0);
+            //hash = digest;
+            break;
+        }
+    }
+    /*if (hasha) {
+        if (hasha != hash)
+        fprintf(stderr, "hasha %"PRIu64" hash %"PRIu64"\n", hasha, hash);
+    }*/
+    //fprintf(stderr, "%"PRIu64"\n", hash);
+    s->body.cached_hash_code = hash;
+}
+/*
+void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
+#include "../3rdparty/siphash-c/src/siphash.h"
+    uint8_t key[16] = { 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2 };
+    MVMuint64 hash;
+    uint64_t su;
+    switch (s->body.storage_type) {
+        //case MVM_STRING_GRAPHEME_8:
+        //case MVM_STRING_GRAPHEME_ASCII: {
+        //}
+        case MVM_STRING_GRAPHEME_32: {
+            su = sip_hash24(key, (uint8_t *)s->body.storage.blob_32, MVM_string_graphs_nocheck(tc, s)*sizeof(MVMGrapheme32));
+            break;
+        }
+        default: {
+            sip_hash *sh = sip_hash_new(key, 2, 4);
+            MVMGraphemeIter gi;
+            size_t outlen = 0;
+            MVM_string_gi_init(tc, &gi, s);
+            while (MVM_string_gi_has_more(tc, &gi)) {
+                MVMGrapheme32 g = MVM_string_gi_get_grapheme(tc, &gi);
+                sip_hash_update(sh, (uint8_t *)&g, sizeof(MVMGrapheme32));
+            }
+            sip_hash_final_integer(sh, &su);
+            sip_hash_free(sh);
+            //hash = digest;
+            break;
+        }
+    }
+    memcpy(&hash, &su, sizeof(uint64_t));
+
+    //fprintf(stderr, "%"PRIu64"\n", hash);
+    s->body.cached_hash_code = hash;
+}*/
+/*void MVM_string_compute_hash_code_hh(MVMThreadContext *tc, MVMString *s) {
+#include "../3rdparty/highwayhash/c/highwayhash.h"
     uint64_t key[4] = { 2,2,2,2 };
     MVMuint64 hash;
     switch (s->body.storage_type) {
@@ -2913,7 +3000,7 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
     }
     //fprintf(stderr, "%"PRIu64"\n", hash);
     s->body.cached_hash_code = hash;
-}
+}*/
 void MVM_string_compute_hash_code2(MVMThreadContext *tc, MVMString *s) {
     /* The hash algorithm works in bytes. Since we can represent strings in a
      * number of ways, and we want consistent hashing, then we'll read the
