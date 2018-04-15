@@ -2887,27 +2887,43 @@ typedef union {
     MVMint32 graphs[2];
     uint8_t bytes[16];
 } MVMJenHashGraphemeView;
-#define MVM_DEBUG_ENDIAN 0
-#if MVM_DEBUG_ENDIAN
-    #include <endian.h>
-    #define NORM_32_BIT_ENDIAN(x) le32toh(x)
-#else
-    #define NORM_32_BIT_ENDIAN(x) (x)
-#endif
-void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
 #include "../3rdparty/csiphash/csiphash.h"
+/* To force little endian representation on big endian machines, set
+ * MVM_HASH_FORCE_LITTLE_ENDIAN in 3rdparty/csiphash/csiphash.h
+ * If this isn't set, MVM_TO_LITTLE_ENDIAN_32 does nothing.
+ * This would mainly be useful for debugging or if there were some other reason
+ * someone cared that hashes were identical on different endianess platforms */
+void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
     const char key[16] = { 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2 };
-    MVMuint64 hash = 0, hasha = 0;
+    MVMuint64 hash = 0;
+    MVMStringIndex s_len = MVM_string_graphs_nocheck(tc, s);
     uint64_t su;
     switch (s->body.storage_type) {
-        //case MVM_STRING_GRAPHEME_8:
-        //case MVM_STRING_GRAPHEME_ASCII: {
-        //}
-#if !MVM_DEBUG_ENDIAN
+        case MVM_STRING_GRAPHEME_8:
+        case MVM_STRING_GRAPHEME_ASCII: {
+            size_t i;
+            MVMJenHashGraphemeView gv;
+            siphash sh;
+            siphashinit(&sh, s_len * sizeof(MVMGrapheme32), key);
+            for (i = 0; i + 1 < s_len;) {
+                gv.graphs[0] = MVM_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i++]);
+                gv.graphs[1] = MVM_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i++]);
+                siphashadd64bits(&sh, gv.bytes);
+            }
+            if (i < s_len) {
+                gv.graphs[0] = MVM_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i]);
+                hash = siphashfinish(&sh, &(gv.graphs), sizeof(MVMGrapheme32));
+            }
+            else {
+                hash = siphashfinish(&sh, NULL, 0);
+            }
+            break;
+        }
+#if !defined(MVM_HASH_FORCE_LITTLE_ENDIAN)
         case MVM_STRING_GRAPHEME_32: {
             hash = siphash24(
                 (uint8_t *)s->body.storage.blob_32,
-                MVM_string_graphs_nocheck(tc, s) * (sizeof(MVMGrapheme32)/sizeof(uint8_t)),
+                s_len * sizeof(MVMGrapheme32),
                 key);
             break;
         }
@@ -2915,30 +2931,22 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
         default: {
             siphash sh;
             MVMGraphemeIter gi;
-            size_t outlen = MVM_string_graphs_nocheck(tc, s);
-            size_t outleft = outlen;
-            size_t i;
             MVMJenHashGraphemeView gv;
-            siphashinit(outlen*sizeof(MVMGrapheme32), key, &sh);
+            size_t i;
+            siphashinit(&sh, s_len * sizeof(MVMGrapheme32), key);
             MVM_string_gi_init(tc, &gi, s);
-            for (i = 0; i + 1 < outlen; i += 2) {
-                MVMGrapheme32 g1, g2;
-                gv.graphs[0] = NORM_32_BIT_ENDIAN(MVM_string_gi_get_grapheme(tc, &gi));
-                gv.graphs[1] = NORM_32_BIT_ENDIAN(MVM_string_gi_get_grapheme(tc, &gi));
+            for (i = 0; i + 1 < s_len; i += 2) {
+                gv.graphs[0] = MVM_TO_LITTLE_ENDIAN_32(MVM_string_gi_get_grapheme(tc, &gi));
+                gv.graphs[1] = MVM_TO_LITTLE_ENDIAN_32(MVM_string_gi_get_grapheme(tc, &gi));
                 siphashadd64bits(&sh, gv.bytes);
-                outleft -= 2;
             }
-            if (i < outlen) {
+            if (i < s_len) {
                 gv.graphs[0] = MVM_string_gi_get_grapheme(tc, &gi);
-                outleft -= 1;
                 hash = siphashfinish(&sh, gv.bytes, sizeof(MVMGrapheme32));
-                //i++;
             }
             else {
                 hash = siphashfinish(&sh, NULL, 0);
             }
-            //hash = siphashfinish(&sh, gv.bytes, i < outlen ? sizeof(MVMGrapheme32) : 0);
-            //hash = digest;
             break;
         }
     }
