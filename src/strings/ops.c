@@ -2890,10 +2890,11 @@ typedef union {
 #include "../3rdparty/csiphash/csiphash.h"
 /* To force little endian representation on big endian machines, set
  * MVM_HASH_FORCE_LITTLE_ENDIAN in 3rdparty/csiphash/csiphash.h
- * If this isn't set, MVM_TO_LITTLE_ENDIAN_32 does nothing.
+ * If this isn't set, MVM_MAYBE_TO_LITTLE_ENDIAN_32 does nothing.
  * This would mainly be useful for debugging or if there were some other reason
  * someone cared that hashes were identical on different endianess platforms */
 void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
+    //const MVMuint64 *key = tc->instance->hashSecrets;
     const char key[16] = { 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2 };
     MVMuint64 hash = 0;
     MVMStringIndex s_len = MVM_string_graphs_nocheck(tc, s);
@@ -2906,12 +2907,12 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
             siphash sh;
             siphashinit(&sh, s_len * sizeof(MVMGrapheme32), key);
             for (i = 0; i + 1 < s_len;) {
-                gv.graphs[0] = MVM_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i++]);
-                gv.graphs[1] = MVM_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i++]);
+                gv.graphs[0] = MVM_MAYBE_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i++]);
+                gv.graphs[1] = MVM_MAYBE_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i++]);
                 siphashadd64bits(&sh, gv.bytes);
             }
             if (i < s_len) {
-                gv.graphs[0] = MVM_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i]);
+                gv.graphs[0] = MVM_MAYBE_TO_LITTLE_ENDIAN_32(s->body.storage.blob_8[i]);
                 hash = siphashfinish(&sh, &(gv.graphs), sizeof(MVMGrapheme32));
             }
             else {
@@ -2936,8 +2937,8 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
             siphashinit(&sh, s_len * sizeof(MVMGrapheme32), key);
             MVM_string_gi_init(tc, &gi, s);
             for (i = 0; i + 1 < s_len; i += 2) {
-                gv.graphs[0] = MVM_TO_LITTLE_ENDIAN_32(MVM_string_gi_get_grapheme(tc, &gi));
-                gv.graphs[1] = MVM_TO_LITTLE_ENDIAN_32(MVM_string_gi_get_grapheme(tc, &gi));
+                gv.graphs[0] = MVM_MAYBE_TO_LITTLE_ENDIAN_32(MVM_string_gi_get_grapheme(tc, &gi));
+                gv.graphs[1] = MVM_MAYBE_TO_LITTLE_ENDIAN_32(MVM_string_gi_get_grapheme(tc, &gi));
                 siphashadd64bits(&sh, gv.bytes);
             }
             if (i < s_len) {
