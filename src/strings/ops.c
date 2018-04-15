@@ -2887,6 +2887,13 @@ typedef union {
     MVMint32 graphs[2];
     uint8_t bytes[16];
 } MVMJenHashGraphemeView;
+#define MVM_DEBUG_ENDIAN 0
+#if MVM_DEBUG_ENDIAN
+    #include <endian.h>
+    #define NORM_32_BIT_ENDIAN(x) le32toh(x)
+#else
+    #define NORM_32_BIT_ENDIAN(x) (x)
+#endif
 void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
 #include "../3rdparty/csiphash/csiphash.h"
     const char key[16] = { 2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2 };
@@ -2896,6 +2903,7 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
         //case MVM_STRING_GRAPHEME_8:
         //case MVM_STRING_GRAPHEME_ASCII: {
         //}
+#if !MVM_DEBUG_ENDIAN
         case MVM_STRING_GRAPHEME_32: {
             hash = siphash24(
                 (uint8_t *)s->body.storage.blob_32,
@@ -2903,6 +2911,7 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
                 key);
             break;
         }
+#endif
         default: {
             siphash sh;
             MVMGraphemeIter gi;
@@ -2914,8 +2923,8 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
             MVM_string_gi_init(tc, &gi, s);
             for (i = 0; i + 1 < outlen; i += 2) {
                 MVMGrapheme32 g1, g2;
-                gv.graphs[0] = MVM_string_gi_get_grapheme(tc, &gi);
-                gv.graphs[1] = MVM_string_gi_get_grapheme(tc, &gi);
+                gv.graphs[0] = NORM_32_BIT_ENDIAN(MVM_string_gi_get_grapheme(tc, &gi));
+                gv.graphs[1] = NORM_32_BIT_ENDIAN(MVM_string_gi_get_grapheme(tc, &gi));
                 siphashadd64bits(&sh, gv.bytes);
                 outleft -= 2;
             }
@@ -2937,7 +2946,7 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
         if (hasha != hash)
         fprintf(stderr, "hasha %"PRIu64" hash %"PRIu64"\n", hasha, hash);
     }*/
-    //fprintf(stderr, "%"PRIu64"\n", hash);
+    fprintf(stderr, "%"PRIu64"\n", hash);
     s->body.cached_hash_code = hash;
 }
 /*
@@ -3012,7 +3021,7 @@ void MVM_string_compute_hash_code2(MVMThreadContext *tc, MVMString *s) {
     MVMuint32 graphs_remaining = MVM_string_graphs(tc, s);
 
     /* Initialize hash state. */
-    MVMuint32 hashv = tc->instance->hashSecret;
+    MVMuint32 hashv = tc->instance->hashSecrets[0];
     MVMuint32 _hj_i, _hj_j;
     _hj_i = _hj_j = 0x9e3779b9;
 
