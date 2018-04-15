@@ -2942,7 +2942,7 @@ void MVM_string_compute_hash_code(MVMThreadContext *tc, MVMString *s) {
                 siphashadd64bits(&sh, gv.bytes);
             }
             if (i < s_len) {
-                gv.graphs[0] = MVM_string_gi_get_grapheme(tc, &gi);
+                gv.graphs[0] = MVM_MAYBE_TO_LITTLE_ENDIAN_32(MVM_string_gi_get_grapheme(tc, &gi));
                 hash = siphashfinish(&sh, gv.bytes, sizeof(MVMGrapheme32));
             }
             else {
