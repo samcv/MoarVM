@@ -34,6 +34,8 @@ addons:
       - expect
       - libffi-dev
       - gdb
+      - llvm
+      - clang
 
 before_script:
   - echo "Begin ‘before_script’ section of .travis.yml"
