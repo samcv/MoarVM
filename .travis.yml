@@ -30,7 +30,6 @@ addons:
   apt:
     sources:
       - sourceline: 'ppa:ubuntu-toolchain-r/test'
-      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
     packages:
       - expect
       - libffi-dev
@@ -38,8 +37,6 @@ addons:
 
 before_script:
   - echo "Begin ‘before_script’ section of .travis.yml"
-  - wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-  - apt-get install llvm-5.0 clang-5.0 -y
   - uname -a
   - gcc --version
   - clang --version
