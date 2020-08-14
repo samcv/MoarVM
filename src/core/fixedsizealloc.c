@@ -353,14 +353,16 @@ void MVM_fixed_size_free_at_safepoint(MVMThreadContext *tc, MVMFixedSizeAlloc *a
         /* Came from a bin; race to add it to the "free at next safe point"
          * list. */
         MVMFixedSizeAllocSizeClass     *bin_ptr = &(al->size_classes[bin]);
-        MVMFixedSizeAllocSafepointFreeListEntry *orig;
         MVMFixedSizeAllocSafepointFreeListEntry *to_add = MVM_fixed_size_alloc(
             tc, al, sizeof(MVMFixedSizeAllocSafepointFreeListEntry));
         to_add->to_free = to_free;
-        do {
-            orig = bin_ptr->free_at_next_safepoint_list;
+        while (1) {
+            MVMFixedSizeAllocSafepointFreeListEntry *orig = bin_ptr->free_at_next_safepoint_list;
             to_add->next = orig;
-        } while (!MVM_trycas(&(bin_ptr->free_at_next_safepoint_list), orig, to_add));
+            if (MVM_trycas(&(bin_ptr->free_at_next_safepoint_list), orig, to_add)) {
+                break;
+            }
+        }
     }
     else {
         /* Was malloc'd due to being oversize. */
